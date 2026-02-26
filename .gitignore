@@ -73,3 +73,6 @@ Thumbs.db
 # Maven Wrapper (Keep jar tracked)
 ############################################
 !.mvn/wrapper/maven-wrapper.jar
+
+# Metrics output files
+metrics/*.json
