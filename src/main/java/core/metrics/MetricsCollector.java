@@ -1,38 +1,77 @@
 package core.metrics;
 
+import constants.FrameworkConstants;
+
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Map;
+import java.util.HashMap;
 
-public class MetricsCollector {
+public final class MetricsCollector {
 
-    private static final Map<String, Object> results =
+    private static final Map<String, Object> testResults =
             new ConcurrentHashMap<>();
 
-    private static long suiteStart;
+    private static final AtomicInteger passedCount =
+            new AtomicInteger();
+
+    private static final AtomicInteger failedCount =
+            new AtomicInteger();
+
+    private static final AtomicInteger skippedCount =
+            new AtomicInteger();
+
+    private static long suiteStartTime;
+
+    private MetricsCollector() {}
 
     public static void startSuite() {
-        suiteStart = System.currentTimeMillis();
+        suiteStartTime = System.currentTimeMillis();
     }
 
     public static void recordTest(String name,
                                   boolean passed,
                                   long duration,
-                                  int retryCount) {
+                                  int retryCount,
+                                  boolean skipped) {
 
-        results.put(name, Map.of(
-                "passed", passed,
-                "duration", duration,
-                "retries", retryCount
-        ));
+        Map<String, Object> testData = new HashMap<>();
+        testData.put("passed", passed);
+        testData.put("durationMs", duration);
+        testData.put("retries", retryCount);
+        testData.put("skipped", skipped);
+
+        testResults.put(name, testData);
+
+        if (skipped) {
+            skippedCount.incrementAndGet();
+        } else if (passed) {
+            passedCount.incrementAndGet();
+        } else {
+            failedCount.incrementAndGet();
+        }
     }
 
-    public static void endSuite() {
+    public static void endSuite(String suiteName,
+                                String environment) {
 
-        long totalTime =
-                System.currentTimeMillis() - suiteStart;
+        long totalExecutionTime =
+                System.currentTimeMillis() - suiteStartTime;
 
-        results.put("totalExecutionTime", totalTime);
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("suite", suiteName);
+        summary.put("environment", environment);
+        summary.put("totalTests",
+                passedCount.get()
+                        + failedCount.get()
+                        + skippedCount.get());
+        summary.put("passed", passedCount.get());
+        summary.put("failed", failedCount.get());
+        summary.put("skipped", skippedCount.get());
+        summary.put("totalExecutionTimeMs",
+                totalExecutionTime);
+        summary.put("tests", testResults);
 
-        MetricsPersistence.persist(results);
+        MetricsPersistence.persist(summary);
     }
 }

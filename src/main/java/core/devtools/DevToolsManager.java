@@ -1,5 +1,7 @@
 package core.devtools;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.devtools.DevTools;
 import org.openqa.selenium.devtools.v120.network.Network;
@@ -8,6 +10,8 @@ import java.util.Optional;
 
 public class DevToolsManager {
 
+    private static final Logger log =
+            LogManager.getLogger(DevToolsManager.class);
     public static void enableNetworkCapture(ChromeDriver driver) {
 
         DevTools devTools = driver.getDevTools();
@@ -21,7 +25,7 @@ public class DevToolsManager {
 
         devTools.addListener(Network.responseReceived(),
                 response -> {
-                    System.out.println(
+                    log.info(
                             "API: " +
                                     response.getResponse().getUrl() +
                                     " Status: " +

@@ -1,35 +1,55 @@
 package core.metrics;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import constants.FrameworkConstants;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
-public class MetricsPersistence {
+public final class MetricsPersistence {
 
-    private static final String METRICS_DIR = "metrics/";
+    private MetricsPersistence() {}
 
     public static void persist(Map<String, Object> data) {
 
         try {
-            File dir = new File(METRICS_DIR);
-            if (!dir.exists()) dir.mkdirs();
+
+            Files.createDirectories(
+                    Paths.get(FrameworkConstants.METRICS_DIR)
+            );
 
             String timestamp =
                     LocalDateTime.now()
-                            .format(DateTimeFormatter
-                                    .ofPattern("yyyy-MM-dd_HH-mm-ss"));
+                            .format(
+                                    DateTimeFormatter
+                                            .ofPattern(
+                                                    "yyyy-MM-dd_HH-mm-ss"
+                                            )
+                            );
 
-            File file = new File(
-                    METRICS_DIR + "execution-" + timestamp + ".json"
-            );
+            String fileName =
+                    FrameworkConstants.METRICS_DIR +
+                            "execution-" +
+                            timestamp +
+                            ".json";
 
-            new ObjectMapper().writeValue(file, data);
+            ObjectMapper mapper =
+                    new ObjectMapper();
+
+            mapper.writerWithDefaultPrettyPrinter()
+                    .writeValue(
+                            new File(fileName),
+                            data
+                    );
 
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new RuntimeException(
+                    "Failed to persist metrics", e);
         }
     }
 }
