@@ -1,82 +1,53 @@
 package base;
 
-import core.config.ConfigReader;
 import core.driver.DriverFactory;
-import core.metrics.MetricsCollector;
+import core.driver.DriverManager;
+import core.reporting.AllureAttachmentService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.openqa.selenium.WebDriver;
-import org.testng.ITestContext;
+import org.testng.ITestResult;
 import org.testng.annotations.*;
 
-@Listeners(listeners.TestListener.class)
-public class BaseTest {
+import org.openqa.selenium.WebDriver;
+
+public abstract class BaseTest {
 
     private static final Logger log =
             LogManager.getLogger(BaseTest.class);
-
-    private static final ThreadLocal<WebDriver> driver =
-            new ThreadLocal<>();
-
-    public WebDriver getDriver() {
-        return driver.get();
-    }
-
-    /* ================= SUITE START ================= */
-
-    @BeforeSuite(alwaysRun = true)
-    public void beforeSuite(ITestContext context) {
-
-        String suiteName =
-                context.getSuite().getName();
-
-        log.info("===== STARTING SUITE: {} =====", suiteName);
-
-        MetricsCollector.startSuite();
-    }
-
-    /* ================= TEST SETUP ================= */
 
     @BeforeMethod(alwaysRun = true)
     public void setUp() {
 
         log.info("Creating WebDriver instance");
 
-        driver.set(DriverFactory.createDriver());
+        WebDriver driver = DriverFactory.createDriver();
+        DriverManager.setDriver(driver);
     }
 
-    /* ================= TEST CLEANUP ================= */
+    protected WebDriver getDriver() {
+        return DriverManager.getDriver();
+    }
+
 
     @AfterMethod(alwaysRun = true)
-    public void tearDown() {
+    public void tearDown(ITestResult result) {
 
-        if (getDriver() != null) {
+        WebDriver driver = DriverManager.getDriver();
 
-            log.info("Closing WebDriver instance");
+        if (driver != null) {
 
-            getDriver().quit();
-            driver.remove();
+            try {
+                if (result.getStatus() == ITestResult.FAILURE) {
+
+                    AllureAttachmentService.attachScreenshot(driver);
+                    AllureAttachmentService.attachPageSource(driver);
+                    AllureAttachmentService.attachConsoleLogs(driver);
+                }
+
+            } finally {
+                driver.quit();
+                DriverManager.unload();
+            }
         }
-    }
-
-    /* ================= SUITE END ================= */
-
-    @AfterSuite(alwaysRun = true)
-    public void afterSuite(ITestContext context) {
-
-        String suiteName =
-                context.getSuite().getName();
-
-        String environment =
-                ConfigReader.get("env");
-
-        MetricsCollector.endSuite(
-                suiteName,
-                environment
-        );
-
-        log.info("===== SUITE FINISHED: {} | ENV: {} =====",
-                suiteName,
-                environment);
     }
 }

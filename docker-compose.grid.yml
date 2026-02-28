@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+
+  automation:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/test-runner.Dockerfile
+    container_name: automation-runner
+    depends_on:
+      - selenium-hub
+    environment:
+      - run.mode=remote
+      - browser=chrome
+      - headless=true
+    volumes:
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+      - ./execution-history:/app/execution-history
+    networks:
+      - grid
+
+networks:
+  grid:
+    driver: bridge

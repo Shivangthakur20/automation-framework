@@ -1,6 +1,7 @@
 package tests;
 
 import base.BaseTest;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 import pages.GooglePage;
 
@@ -17,8 +18,7 @@ public class MyTest extends BaseTest {
     @Test(groups = {"smoke"})
     public void smokeTest_googleSearch() {
         getDriver().get("https://www.google.com");
-        throw new RuntimeException("Intentional failure");
-    }
+        Assert.fail("Intentional failure");    }
 
 
 

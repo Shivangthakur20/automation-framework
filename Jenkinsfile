@@ -1,13 +1,27 @@
 pipeline {
+
     agent any
 
-    tools {
-        maven 'Maven3'
-        jdk 'JDK11'
+    parameters {
+        choice(name: 'RUN_MODE',
+               choices: ['local', 'remote'],
+               description: 'Execution Mode')
+
+        choice(name: 'BROWSER',
+               choices: ['chrome', 'firefox'],
+               description: 'Browser')
+
+        booleanParam(name: 'HEADLESS',
+                     defaultValue: true,
+                     description: 'Run in headless mode')
+
+        string(name: 'SUITE',
+               defaultValue: 'testng.xml',
+               description: 'TestNG suite file')
     }
 
     environment {
-        MAVEN_OPTS = "-Dmaven.test.failure.ignore=true"
+        MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
     }
 
     stages {
@@ -18,42 +32,60 @@ pipeline {
             }
         }
 
-        stage('Build & Test (Docker)') {
+        stage('Build') {
             steps {
-                script {
-                    sh '''
-                    docker build -t testng-framework .
-                    docker run --name testng-run testng-framework || true
-                    docker cp testng-run:/app/target ./target
-                    docker rm testng-run
-                    '''
-                }
+                sh 'mvn clean install -DskipTests'
             }
         }
 
-        stage('Publish Extent Report') {
+        stage('Start Grid') {
+            when {
+                expression { params.RUN_MODE == 'remote' }
+            }
             steps {
-                publishHTML([
-                    reportDir: 'target',
-                    reportFiles: 'extent-report.html',
-                    reportName: 'Extent Test Report'
-                ])
+                sh 'docker compose up -d --scale chrome=3'
+                sh 'sleep 10'
             }
         }
 
-        stage('Publish Allure Report') {
+        stage('Run Tests') {
             steps {
-                allure([
-                    includeProperties: false,
-                    results: [[path: 'target/allure-results']]
-                ])
+                sh """
+                    mvn clean test \
+                    -Drun.mode=${params.RUN_MODE} \
+                    -Dbrowser=${params.BROWSER} \
+                    -Dheadless=${params.HEADLESS} \
+                    -Dsuite=${params.SUITE}
+                """
+            }
+        }
+
+        stage('Generate Allure Report') {
+            steps {
+                sh 'mvn allure:report'
             }
         }
     }
 
     post {
+
         always {
-            archiveArtifacts artifacts: 'target/**/*.png', fingerprint: true
+
+            archiveArtifacts artifacts: 'target/**', fingerprint: true
+
+            script {
+                if (params.RUN_MODE == 'remote') {
+                    sh 'docker compose down'
+                }
+            }
+        }
+
+        failure {
+            echo "Build failed."
+        }
+
+        success {
+            echo "Build successful."
         }
     }
 }

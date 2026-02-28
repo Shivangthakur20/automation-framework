@@ -1,34 +1,13 @@
 package core.notification;
 
-import core.config.ConfigReader;
 import core.metrics.ExecutionSummary;
 
-import java.util.List;
+public final class NotificationManager {
 
-public class NotificationManager {
+    private NotificationManager() {}
 
-    private final List<NotificationService> services;
+    public static void notify(ExecutionSummary summary) {
 
-    public NotificationManager(List<NotificationService> services) {
-        this.services = services;
-    }
-
-    public void process(ExecutionSummary summary) {
-
-        if (!ConfigReader.get("notification.enabled")
-                .equalsIgnoreCase("true")) {
-            return;
-        }
-
-        if (ConfigReader.get("notification.mode")
-                .equalsIgnoreCase("ci")) {
-            return; // CI handles notification
-        }
-
-        for (NotificationService service : services) {
-            if (service.isEnabled()) {
-                service.notify(summary);
-            }
-        }
+        SlackNotificationService.send(summary);
     }
 }

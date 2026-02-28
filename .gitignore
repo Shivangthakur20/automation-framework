@@ -5,6 +5,9 @@ target/
 build/
 dependency-reduced-pom.xml
 
+# Ignore markdown files
+*.md
+
 ############################################
 # Test Reports
 ############################################

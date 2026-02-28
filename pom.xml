@@ -19,6 +19,7 @@
         <allure.results.directory>
             target/allure-results
         </allure.results.directory>
+            <suite>testng.xml</suite>
 
     </properties>
 
@@ -30,7 +31,6 @@
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
             <version>7.9.0</version>
-            <scope>test</scope>
         </dependency>
 
         <!-- Selenium -->
@@ -64,7 +64,7 @@
         <dependency>
             <groupId>io.qameta.allure</groupId>
             <artifactId>allure-testng</artifactId>
-            <version>2.25.0</version>
+            <version>2.20.1</version>
         </dependency>
         <!-- Log4j2 API -->
         <dependency>
@@ -78,6 +78,12 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
             <version>2.25.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
+            <version>1.9.21</version>
         </dependency>
     </dependencies>
 

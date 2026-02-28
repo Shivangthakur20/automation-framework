@@ -1,36 +1,38 @@
 package core.notification;
 
-import core.config.ConfigReader;
 import core.metrics.ExecutionSummary;
+import core.config.ConfigReader;
 
-public class SlackNotificationService
-        implements NotificationService {
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-    @Override
-    public boolean isEnabled() {
-        return Boolean.parseBoolean(
-                ConfigReader.get("slack.enabled"));
-    }
+public final class SlackNotificationService {
 
-    @Override
-    public void notify(ExecutionSummary summary) {
+    private static final Logger log =
+            LogManager.getLogger(SlackNotificationService.class);
 
-        if (!isEnabled()) return;
+    private SlackNotificationService() {}
 
-        boolean onlyOnFailure =
-                Boolean.parseBoolean(
-                        ConfigReader.get("notification.onlyOnFailure"));
+    public static void send(ExecutionSummary summary) {
 
-        int minPassRate =
-                Integer.parseInt(
-                        ConfigReader.get("notification.minPassRate"));
+        String webhook = ConfigReader.get("slack.webhook");
 
-        if (onlyOnFailure && summary.getFailed() == 0)
+        if (webhook == null || webhook.isEmpty()) {
+            log.warn("Slack webhook not configured.");
             return;
+        }
 
-        if (summary.getPassRate() >= minPassRate)
-            return;
+        String message =
+                "Suite: " + summary.getSuiteName() +
+                        "\nEnvironment: " + summary.getEnvironment() +
+                        "\nTotal: " + summary.getTotal() +
+                        "\nPassed: " + summary.getPassed() +
+                        "\nFailed: " + summary.getFailed() +
+                        "\nDuration(ms): " + summary.getDurationMs();
 
-        SlackNotifier.send(summary);
+        // FIXED LINE
+        SlackNotifier.send(message);
+
+        log.info("Slack notification sent.");
     }
 }
