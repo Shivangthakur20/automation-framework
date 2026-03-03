@@ -1,0 +1,20 @@
+<suite name="E2E Suite" verbose="1">
+    <listeners>
+        <listener class-name="core.retry.RetryTransformer"/>
+        <listener class-name="core.metrics.FlakyQuarantineTransformer"/>
+        <listener class-name="io.qameta.allure.testng.AllureTestNg"/>
+        <listener class-name="listeners.TestListener"/>
+    </listeners>
+
+    <test name="Cross-layer E2E Tests">
+        <groups>
+            <run>
+                <include name="e2e"/>
+            </run>
+        </groups>
+        <classes>
+            <class name="e2e.BasicE2ETest"/>
+        </classes>
+    </test>
+</suite>
+

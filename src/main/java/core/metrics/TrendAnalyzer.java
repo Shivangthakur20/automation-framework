@@ -1,6 +1,7 @@
 package core.metrics;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import core.config.ConfigReader;
 
 import java.io.File;
 import java.util.Arrays;
@@ -14,8 +15,11 @@ public class TrendAnalyzer {
     public static ExecutionSummary getPrevious(
             String suite) {
 
+        String env = ConfigReader.getOrDefault("env", "default");
+
         File dir = new File(
-                "target/history/" + suite);
+                ExecutionHistoryManager.HISTORY_BASE_DIR
+                        + env + File.separator + suite);
 
         if (!dir.exists()) {
             return null;

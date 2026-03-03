@@ -1,0 +1,37 @@
+{
+  "suiteName" : "UI Suite",
+  "environment" : "prod",
+  "total" : 5,
+  "passed" : 4,
+  "failed" : 1,
+  "skipped" : 0,
+  "durationMs" : 17500,
+  "tests" : {
+    "ui_canOpenBaseUrl" : {
+      "passed" : true,
+      "skipped" : false,
+      "durationMs" : 1049,
+      "retries" : 0
+    },
+    "smokeTest_googleSearch" : {
+      "passed" : true,
+      "skipped" : false,
+      "durationMs" : 1366,
+      "retries" : 0
+    },
+    "config_shouldExposeBaseUrl" : {
+      "passed" : true,
+      "skipped" : false,
+      "durationMs" : 1,
+      "retries" : 0
+    },
+    "regressionTest_googleSearch" : {
+      "passed" : true,
+      "skipped" : false,
+      "durationMs" : 1912,
+      "retries" : 0
+    }
+  },
+  "duration" : 17500,
+  "failures" : 1
+}

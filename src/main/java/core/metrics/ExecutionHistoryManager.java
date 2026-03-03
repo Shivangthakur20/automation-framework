@@ -16,8 +16,10 @@ public class ExecutionHistoryManager {
     private static final ObjectMapper mapper =
             new ObjectMapper();
 
-    private static final String BASE_DIR =
-            "target/history/";
+    // Base directory for persistent execution history
+    // (outside Maven target so it survives `mvn clean`)
+    public static final String HISTORY_BASE_DIR =
+            "execution-history/";
 
     /* ================= SAVE EXECUTION ================= */
 
@@ -31,7 +33,15 @@ public class ExecutionHistoryManager {
 
         String suite = summary.getSuiteName();
 
-        File dir = new File(BASE_DIR + suite);
+        String env =
+                Optional.ofNullable(summary.getEnvironment())
+                        .filter(s -> !s.isBlank())
+                        .orElseGet(() ->
+                                ConfigReader.getOrDefault("env", "default"));
+
+        File dir = new File(
+                HISTORY_BASE_DIR + env + File.separator + suite
+        );
 
         if (!dir.exists()) {
             dir.mkdirs();
@@ -59,7 +69,11 @@ public class ExecutionHistoryManager {
             String suite,
             int limit) {
 
-        File dir = new File(BASE_DIR + suite);
+        String env = ConfigReader.getOrDefault("env", "default");
+
+        File dir = new File(
+                HISTORY_BASE_DIR + env + File.separator + suite
+        );
 
         if (!dir.exists()) {
             return Collections.emptyList();

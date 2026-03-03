@@ -19,7 +19,21 @@ public class SummaryWriter {
 
             ExecutionHistoryManager.save(summary);
 
-            writeEnvironment();   // <-- add this
+            // Optional flaky detection + quarantine
+            if (ConfigReader.getBoolean("flaky.enabled", false)) {
+                int historyCount = ConfigReader.getInt(
+                        "flaky.history.count", 5);
+                double threshold = Double.parseDouble(
+                        ConfigReader.getOrDefault(
+                                "flaky.threshold", "0.2"));
+                FlakyDetectionService.analyzeFlakiness(
+                        summary.getSuiteName(),
+                        historyCount,
+                        threshold
+                );
+            }
+
+            writeEnvironment();
 
             log.info("Execution summary persisted successfully.");
 
