@@ -1,0 +1,49 @@
+pipeline {
+
+    agent any
+
+    triggers {
+        cron('H H * * 0')
+    }
+
+    stages {
+
+        stage('Checkout') {
+
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Run OWASP Dependency Check') {
+
+            steps {
+
+                sh '''
+                mvn org.owasp:dependency-check-maven:check \
+                -Dformat=HTML \
+                -DassemblyAnalyzerEnabled=false
+                '''
+            }
+        }
+
+        stage('Archive Security Report') {
+
+            steps {
+
+                archiveArtifacts artifacts: '**/dependency-check-report.html'
+            }
+        }
+    }
+
+    post {
+
+        success {
+            echo 'Security scan completed'
+        }
+
+        failure {
+            echo 'Security scan failed'
+        }
+    }
+}
