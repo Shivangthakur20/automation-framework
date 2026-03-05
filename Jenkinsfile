@@ -19,7 +19,7 @@ pipeline {
         booleanParam(
             name: 'HEADLESS',
             defaultValue: true,
-            description: 'Headless execution'
+            description: 'Run tests in headless mode'
         )
 
         choice(
@@ -30,7 +30,9 @@ pipeline {
     }
 
     environment {
+
         MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
+
         GRID_COMPOSE = 'infrastructure/docker/grid/docker-compose.yml'
     }
 
@@ -43,7 +45,9 @@ pipeline {
         }
 
         stage('Build') {
+
             steps {
+
                 sh '''
                 mvn -B clean install \
                 -DskipTests \
@@ -61,7 +65,7 @@ pipeline {
             steps {
 
                 sh """
-                docker compose -f ${env.GRID_COMPOSE} up -d \
+                docker-compose -f ${env.GRID_COMPOSE} up -d \
                 --scale chrome=3 \
                 --scale firefox=0
                 """
@@ -75,7 +79,7 @@ pipeline {
 
                     if echo "$STATUS" | grep -q '"ready":true'
                     then
-                        echo "Grid is ready"
+                        echo "Selenium Grid is ready"
                         exit 0
                     fi
 
@@ -103,11 +107,15 @@ pipeline {
                         -Dheadless=${params.HEADLESS}
                         """
 
-                    } else if (params.SCOPE == 'api') {
+                    }
+
+                    else if (params.SCOPE == 'api') {
 
                         sh "mvn -pl api test"
 
-                    } else {
+                    }
+
+                    else {
 
                         sh """
                         mvn test \
@@ -115,6 +123,7 @@ pipeline {
                         -Dbrowser=${params.BROWSER} \
                         -Dheadless=${params.HEADLESS}
                         """
+
                     }
                 }
             }
@@ -126,8 +135,10 @@ pipeline {
 
                 sh 'mvn -pl web-ui allure:report || true'
                 sh 'mvn -pl api allure:report || true'
+
             }
         }
+
     }
 
     post {
@@ -141,10 +152,13 @@ pipeline {
                 if (params.RUN_MODE == 'remote') {
 
                     sh """
-                    docker compose -f ${env.GRID_COMPOSE} down
+                    docker-compose -f ${env.GRID_COMPOSE} down
                     """
+
                 }
+
             }
+
         }
 
         success {
@@ -154,5 +168,7 @@ pipeline {
         failure {
             echo 'Build failed'
         }
+
     }
+
 }
