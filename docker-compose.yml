@@ -1,5 +1,10 @@
-services:
+# Jenkins. Uses network "automation-net" so the grid (docker-compose.grid-only.yml) can join the same network and Jenkins can reach selenium-hub:4444.
+# The network is created automatically when you run this compose; no need to run "docker network create" first.
+# See docs/JENKINS.md.
 
+version: "3.8"
+
+services:
   jenkins:
     build:
       context: ./jenkins
@@ -17,11 +22,11 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
     networks:
-      - automation
+      - automation-net
 
 volumes:
   jenkins_home:
 
 networks:
-  automation:
+  automation-net:
     driver: bridge
