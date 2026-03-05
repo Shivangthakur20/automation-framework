@@ -10,17 +10,23 @@ LABEL maintainer="shivang"
 LABEL description="Automation Test Runner Container"
 
 # -----------------------------
-# Set working directory
+# Environment
+# -----------------------------
+ENV MAVEN_OPTS="-Dmaven.repo.local=/root/.m2"
+
+# -----------------------------
+# Working Directory
 # -----------------------------
 WORKDIR /app
 
 # -----------------------------
-# Copy parent POM
+# Copy Parent POM
 # -----------------------------
 COPY pom.xml .
 
 # -----------------------------
-# Copy module POMs (for caching)
+# Copy module POMs only
+# (helps Docker cache dependencies)
 # -----------------------------
 COPY framework-core/pom.xml framework-core/
 COPY web-ui/pom.xml web-ui/
@@ -29,18 +35,19 @@ COPY perf-gatling/pom.xml perf-gatling/
 COPY e2e/pom.xml e2e/
 
 # -----------------------------
-# Download dependencies
+# Pre-download dependencies
 # -----------------------------
 RUN mvn -B -q \
     -Dmaven.test.skip=true \
+    -Ddependency-check.skip=true \
     dependency:go-offline
 
 # -----------------------------
-# Copy full source code
+# Copy full project source
 # -----------------------------
 COPY . .
 
 # -----------------------------
 # Default command
 # -----------------------------
-CMD ["mvn","-B","test"]
+CMD ["mvn", "-B", "test"]
