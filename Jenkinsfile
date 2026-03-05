@@ -32,13 +32,27 @@ pipeline {
             choices: ['ui', 'api', 'all'],
             description: 'Which tests to run'
         )
+
+        // Horizontal scaling / parallel: use a shared grid reachable by all agents (e.g. http://grid-host:4444)
+        string(
+            name: 'GRID_URL_PARAM',
+            defaultValue: '',
+            description: 'Optional. Grid URL for remote mode (e.g. http://selenium-grid:4444). Leave empty for default (localhost when grid runs on this agent). Required for multi-agent or shared grid.'
+        )
+
+        booleanParam(
+            name: 'USE_SHARED_GRID',
+            defaultValue: false,
+            description: 'Use an already-running shared grid. When true, do NOT start/stop grid on this agent; GRID_URL_PARAM (or global GRID_URL) must point to the shared grid. Use for horizontal scaling / parallel runs.'
+        )
     }
 
     environment {
 
         MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
 
-        // Correct grid file path
+        // Grid URL: param > global env > default. For horizontal scaling set GRID_URL_PARAM or global GRID_URL to shared grid host.
+        GRID_URL = params.GRID_URL_PARAM?.trim() ?: env.GRID_URL ?: 'http://localhost:4444'
         GRID_COMPOSE = 'infrastructure/docker/docker-compose.grid-only.yml'
     }
 
@@ -75,7 +89,7 @@ pipeline {
         stage('Start Selenium Grid') {
 
             when {
-                expression { params.RUN_MODE == 'remote' }
+                expression { params.RUN_MODE == 'remote' && !params.USE_SHARED_GRID }
             }
 
             steps {
@@ -86,32 +100,36 @@ pipeline {
                 """
 
                 sh """
-                echo "Starting Selenium Grid..."
+                echo "Starting Selenium Grid on this agent..."
                 docker compose -f ${env.GRID_COMPOSE} up -d \
                 --scale chrome=3 \
                 --scale firefox=0
                 """
+            }
+        }
 
-                sh '''
-                echo "Waiting for Selenium Grid..."
+        stage('Wait for Grid') {
 
-                for i in {1..30}
-                do
-                    STATUS=$(curl -s http://selenium-hub:4444/status || true)
+            when {
+                expression { params.RUN_MODE == 'remote' }
+            }
 
-                    if echo "$STATUS" | grep -q '"ready":true'
-                    then
-                        echo "Selenium Grid is ready"
-                        exit 0
-                    fi
-
-                    echo "Grid not ready yet..."
-                    sleep 2
-                done
-
-                echo "Grid failed to start"
-                exit 1
-                '''
+            steps {
+                sh """
+                    STATUS_URL='${env.GRID_URL?.replaceAll(/\/$/, '') ?: 'http://localhost:4444'}/status'
+                    echo "Waiting for Selenium Grid at \$STATUS_URL (reachable from this agent)..."
+                    for i in \$(seq 1 30); do
+                        STATUS=\$(curl -s "\$STATUS_URL" 2>/dev/null || true)
+                        if echo "\$STATUS" | grep -q '"ready":true'; then
+                            echo "Selenium Grid is ready"
+                            exit 0
+                        fi
+                        echo "Grid not ready (\$i/30)..."
+                        sleep 2
+                    done
+                    echo "Grid failed to start or unreachable. For shared grid, set GRID_URL_PARAM (or global GRID_URL) to the grid host."
+                    exit 1
+                """
             }
         }
 
@@ -124,23 +142,25 @@ pipeline {
                     if (params.SCOPE == 'ui') {
 
                         sh """
-                        mvn -pl web-ui test \
+                        mvn -pl web-ui test -B \
                         -Drun.mode=${params.RUN_MODE} \
                         -Dbrowser=${params.BROWSER} \
-                        -Dheadless=${params.HEADLESS}
+                        -Dheadless=${params.HEADLESS} \
+                        -Dgrid.url=${env.GRID_URL}
                         """
 
                     } else if (params.SCOPE == 'api') {
 
-                        sh "mvn -pl api test"
+                        sh "mvn -pl api test -B"
 
                     } else {
 
                         sh """
-                        mvn test \
+                        mvn test -B \
                         -Drun.mode=${params.RUN_MODE} \
                         -Dbrowser=${params.BROWSER} \
-                        -Dheadless=${params.HEADLESS}
+                        -Dheadless=${params.HEADLESS} \
+                        -Dgrid.url=${env.GRID_URL}
                         """
                     }
                 }
@@ -165,10 +185,10 @@ pipeline {
 
             script {
 
-                if (params.RUN_MODE == 'remote') {
+                if (params.RUN_MODE == 'remote' && !params.USE_SHARED_GRID) {
 
                     sh """
-                    echo "Stopping Selenium Grid..."
+                    echo "Stopping Selenium Grid on this agent..."
                     docker compose -f ${env.GRID_COMPOSE} down || true
                     """
                 }
