@@ -70,9 +70,9 @@ pipeline {
                 sh '''
                 echo "Waiting for Selenium Grid..."
 
-                for i in $(seq 1 30)
+                for i in {1..30}
                 do
-                    STATUS=$(curl -s http://localhost:4444/status || true)
+                    STATUS=$(curl -s http://selenium-hub:4444/status || true)
 
                     if echo "$STATUS" | grep -q '"ready":true'
                     then
