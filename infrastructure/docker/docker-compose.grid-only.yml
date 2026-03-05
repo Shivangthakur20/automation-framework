@@ -1,0 +1,52 @@
+services:
+
+  selenium-hub:
+    image: selenium/hub:4.21.0
+    container_name: selenium-hub
+    ports:
+      - "4444:4444"
+    environment:
+      - SE_LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4444/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - grid
+
+  chrome:
+    image: selenium/node-chrome:4.21.0
+    shm_size: 2gb
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=2
+      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
+      - SE_NODE_HOST=chrome
+      - SE_LOG_LEVEL=INFO
+    networks:
+      - grid
+
+  firefox:
+    image: selenium/node-firefox:4.21.0
+    shm_size: 2gb
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_HOST=firefox
+      - SE_LOG_LEVEL=INFO
+    networks:
+      - grid
+
+networks:
+  grid:
+    driver: bridge
