@@ -47,6 +47,8 @@ public final class AllureAttachmentService {
 
             log.info("Screenshot attached to Allure (Lifecycle API).");
 
+        } catch (WebDriverException e) {
+            log.warn("Screenshot not available: {}", e.getMessage());
         } catch (Exception e) {
             log.error("Failed to attach screenshot", e);
         }
@@ -70,8 +72,9 @@ public final class AllureAttachmentService {
 
             log.info("Page source attached to Allure.");
 
+        } catch (WebDriverException e) {
+            log.warn("Page source not available: {}", e.getMessage());
         } catch (Exception e) {
-
             log.error("Failed to attach page source", e);
         }
     }
