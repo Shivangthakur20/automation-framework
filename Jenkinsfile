@@ -245,6 +245,7 @@ pipeline {
                     catchError(buildResult: null, stageResult: 'FAILURE') {
 
                         allure([
+                            commandline: 'Allure',
                             includeProperties: false,
                             jdk: '',
                             reportBuildPolicy: 'ALWAYS',
