@@ -1,13 +1,28 @@
 pipeline {
+
     agent any
 
-    tools {
-        maven 'Maven3'
-        jdk 'JDK11'
+    parameters {
+        choice(name: 'RUN_MODE',
+               choices: ['local', 'remote'],
+               description: 'Execution Mode')
+
+        choice(name: 'BROWSER',
+               choices: ['chrome', 'firefox'],
+               description: 'Browser')
+
+        booleanParam(name: 'HEADLESS',
+                     defaultValue: true,
+                     description: 'Run in headless mode')
+
+        choice(name: 'SCOPE',
+               choices: ['ui', 'api', 'all'],
+               description: 'What to run: UI, API, or all modules')
     }
 
     environment {
-        MAVEN_OPTS = "-Dmaven.test.failure.ignore=true"
+        MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
+        GRID_COMPOSE = 'infrastructure/docker/grid/docker-compose.yml'
     }
 
     stages {
@@ -18,42 +33,100 @@ pipeline {
             }
         }
 
-        stage('Build & Test (Docker)') {
+        stage('Build') {
             steps {
+                sh 'mvn clean install -DskipTests -q'
+            }
+        }
+
+        stage('Start Grid') {
+            when {
+                expression { params.RUN_MODE == 'remote' }
+            }
+            steps {
+                sh "docker compose -f ${env.GRID_COMPOSE} up -d --scale chrome=3 --scale firefox=0"
                 script {
-                    sh '''
-                    docker build -t testng-framework .
-                    docker run --name testng-run testng-framework || true
-                    docker cp testng-run:/app/target ./target
-                    docker rm testng-run
-                    '''
+                    def gridReady = false
+                    for (int i = 0; i < 30; i++) {
+                        def status = sh(script: "curl -s http://localhost:4444/status 2>/dev/null || true", returnStdout: true).trim()
+                        if (status.contains('"ready":true')) {
+                            gridReady = true
+                            break
+                        }
+                        sleep(time: 2, unit: 'SECONDS')
+                    }
+                    if (!gridReady) {
+                        error('Selenium Grid did not become ready in time')
+                    }
                 }
             }
         }
 
-        stage('Publish Extent Report') {
+        stage('Run Tests') {
             steps {
-                publishHTML([
-                    reportDir: 'target',
-                    reportFiles: 'extent-report.html',
-                    reportName: 'Extent Test Report'
-                ])
+                script {
+                    if (params.SCOPE == 'ui') {
+                        sh """
+                            mvn -pl web-ui test -q \
+                            -Drun.mode=${params.RUN_MODE} \
+                            -Dbrowser=${params.BROWSER} \
+                            -Dheadless=${params.HEADLESS}
+                        """
+                    } else if (params.SCOPE == 'api') {
+                        sh 'mvn -pl api test -q'
+                    } else {
+                        sh """
+                            mvn test -q \
+                            -Drun.mode=${params.RUN_MODE} \
+                            -Dbrowser=${params.BROWSER} \
+                            -Dheadless=${params.HEADLESS}
+                        """
+                    }
+                }
             }
         }
 
-        stage('Publish Allure Report') {
+        stage('Generate Allure Report') {
+            when {
+                anyOf {
+                    expression { params.SCOPE == 'ui' }
+                    expression { params.SCOPE == 'api' }
+                    expression { params.SCOPE == 'all' }
+                }
+            }
             steps {
-                allure([
-                    includeProperties: false,
-                    results: [[path: 'target/allure-results']]
-                ])
+                script {
+                    if (params.SCOPE == 'ui') {
+                        sh 'mvn -pl web-ui allure:report -q'
+                    } else if (params.SCOPE == 'api') {
+                        sh 'mvn -pl api allure:report -q'
+                    } else {
+                        sh 'mvn -pl web-ui allure:report -q'
+                        sh 'mvn -pl api allure:report -q'
+                    }
+                }
             }
         }
     }
 
     post {
+
         always {
-            archiveArtifacts artifacts: 'target/**/*.png', fingerprint: true
+            archiveArtifacts artifacts: '**/target/**', fingerprint: true, allowEmptyArchive: true
+
+            script {
+                if (params.RUN_MODE == 'remote') {
+                    sh "docker compose -f ${env.GRID_COMPOSE} down --remove-orphans 2>/dev/null || true"
+                }
+            }
+        }
+
+        failure {
+            echo 'Build failed.'
+        }
+
+        success {
+            echo 'Build successful.'
         }
     }
 }

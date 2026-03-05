@@ -9,10 +9,11 @@
                     pattern="%d{HH:mm:ss} [%t] %-5level %c - %msg%n"/>
         </Console>
 
-        <!-- Rolling File Logging -->
+        <!-- Rolling File Logging (per-environment) -->
+        <!-- Uses JVM system property 'env' (e.g. -Denv=qa) with default 'local' -->
         <RollingFile name="File"
-                     fileName="logs/framework.log"
-                     filePattern="logs/framework-%d{yyyy-MM-dd}-%i.log.gz">
+                     fileName="logs/framework-${sys:env:-local}.log"
+                     filePattern="logs/framework-${sys:env:-local}-%d{yyyy-MM-dd}-%i.log.gz">
 
             <PatternLayout
                     pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5level %c - %msg%n"/>

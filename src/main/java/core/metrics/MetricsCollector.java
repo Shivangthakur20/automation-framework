@@ -1,77 +1,56 @@
 package core.metrics;
 
-import constants.FrameworkConstants;
-
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Map;
-import java.util.HashMap;
 
 public final class MetricsCollector {
 
-    private static final Map<String, Object> testResults =
+    private final Map<String, TestResultInfo> testResults =
             new ConcurrentHashMap<>();
 
-    private static final AtomicInteger passedCount =
-            new AtomicInteger();
+    private final AtomicInteger passedCount = new AtomicInteger();
+    private final AtomicInteger failedCount = new AtomicInteger();
+    private final AtomicInteger skippedCount = new AtomicInteger();
 
-    private static final AtomicInteger failedCount =
-            new AtomicInteger();
+    private long suiteStartTime;
 
-    private static final AtomicInteger skippedCount =
-            new AtomicInteger();
-
-    private static long suiteStartTime;
-
-    private MetricsCollector() {}
-
-    public static void startSuite() {
+    public void startSuite() {
         suiteStartTime = System.currentTimeMillis();
     }
 
-    public static void recordTest(String name,
-                                  boolean passed,
-                                  long duration,
-                                  int retryCount,
-                                  boolean skipped) {
-
-        Map<String, Object> testData = new HashMap<>();
-        testData.put("passed", passed);
-        testData.put("durationMs", duration);
-        testData.put("retries", retryCount);
-        testData.put("skipped", skipped);
-
-        testResults.put(name, testData);
-
-        if (skipped) {
-            skippedCount.incrementAndGet();
-        } else if (passed) {
-            passedCount.incrementAndGet();
-        } else {
-            failedCount.incrementAndGet();
-        }
+    public void recordSuccess(String testName, long duration, int retries) {
+        passedCount.incrementAndGet();
+        testResults.put(testName,
+                new TestResultInfo(true, false, duration, retries));
     }
 
-    public static void endSuite(String suiteName,
-                                String environment) {
+    public void recordFailure(String testName, long duration, int retries) {
+        failedCount.incrementAndGet();
+        testResults.put(testName,
+                new TestResultInfo(false, false, duration, retries));
+    }
 
-        long totalExecutionTime =
+    public void recordSkipped(String testName) {
+        skippedCount.incrementAndGet();
+        testResults.put(testName,
+                new TestResultInfo(false, true, 0, 0));
+    }
+
+    public ExecutionSummary buildSummary(String suiteName, String environment) {
+
+        long duration =
                 System.currentTimeMillis() - suiteStartTime;
 
-        Map<String, Object> summary = new HashMap<>();
-        summary.put("suite", suiteName);
-        summary.put("environment", environment);
-        summary.put("totalTests",
-                passedCount.get()
-                        + failedCount.get()
-                        + skippedCount.get());
-        summary.put("passed", passedCount.get());
-        summary.put("failed", failedCount.get());
-        summary.put("skipped", skippedCount.get());
-        summary.put("totalExecutionTimeMs",
-                totalExecutionTime);
-        summary.put("tests", testResults);
-
-        MetricsPersistence.persist(summary);
+        return new ExecutionSummary(
+                suiteName,
+                environment,
+                passedCount.get() + failedCount.get() + skippedCount.get(),
+                passedCount.get(),
+                failedCount.get(),
+                skippedCount.get(),
+                duration,
+                testResults
+        );
     }
 }

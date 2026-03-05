@@ -1,0 +1,20 @@
+<suite name="API Suite" verbose="1">
+    <listeners>
+        <listener class-name="core.retry.RetryTransformer"/>
+        <listener class-name="core.metrics.FlakyQuarantineTransformer"/>
+        <listener class-name="io.qameta.allure.testng.AllureTestNg"/>
+        <listener class-name="listeners.TestListener"/>
+    </listeners>
+
+    <test name="API Tests Only">
+        <groups>
+            <run>
+                <include name="api"/>
+            </run>
+        </groups>
+        <classes>
+            <class name="api.tests.HealthCheckTest"/>
+        </classes>
+    </test>
+</suite>
+
