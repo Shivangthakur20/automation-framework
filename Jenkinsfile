@@ -39,7 +39,7 @@ pipeline {
         MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
 
         // Correct grid file path
-        GRID_COMPOSE = 'infrastructure/docker/docker-compose-grid-only.yml'
+        GRID_COMPOSE = 'infrastructure/docker/docker-compose.grid-only.yml'
     }
 
     stages {
@@ -47,18 +47,6 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-            }
-        }
-
-        stage('Debug Workspace') {
-            steps {
-                sh '''
-                echo "Current directory:"
-                pwd
-
-                echo "Workspace contents:"
-                ls -R
-                '''
             }
         }
 
