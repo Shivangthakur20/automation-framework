@@ -2,35 +2,24 @@ pipeline {
 
     agent any
 
+    tools {
+        jdk 'jdk11'
+        maven 'maven3'
+    }
+
     parameters {
 
-        choice(
-            name: 'RUN_MODE',
-            choices: ['local', 'remote'],
-            description: 'Execution Mode'
-        )
+        choice(name: 'RUN_MODE', choices: ['local', 'remote'], description: 'Execution Mode')
 
-        choice(
-            name: 'BROWSER',
-            choices: ['chrome', 'firefox'],
-            description: 'Browser'
-        )
+        choice(name: 'BROWSER', choices: ['chrome', 'firefox'], description: 'Browser')
 
-        booleanParam(
-            name: 'HEADLESS',
-            defaultValue: true,
-            description: 'Headless execution'
-        )
+        booleanParam(name: 'HEADLESS', defaultValue: true, description: 'Run tests in headless mode')
 
-        choice(
-            name: 'SCOPE',
-            choices: ['ui', 'api', 'all'],
-            description: 'Which tests to run'
-        )
+        choice(name: 'SCOPE', choices: ['ui', 'api', 'all'], description: 'Which tests to run')
     }
 
     environment {
-        MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
+        MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
         GRID_COMPOSE = 'infrastructure/docker/grid/docker-compose.yml'
     }
 
@@ -39,6 +28,18 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+            }
+        }
+
+        stage('Verify Environment') {
+            steps {
+                sh '''
+                echo "Java version:"
+                java -version
+
+                echo "Maven version:"
+                mvn -version
+                '''
             }
         }
 
@@ -61,7 +62,7 @@ pipeline {
             steps {
 
                 sh """
-                docker compose -f ${env.GRID_COMPOSE} up -d \
+                docker-compose -f ${env.GRID_COMPOSE} up -d \
                 --scale chrome=3 \
                 --scale firefox=0
                 """
@@ -69,13 +70,13 @@ pipeline {
                 sh '''
                 echo "Waiting for Selenium Grid..."
 
-                for i in {1..30}
+                for i in $(seq 1 30)
                 do
                     STATUS=$(curl -s http://localhost:4444/status || true)
 
                     if echo "$STATUS" | grep -q '"ready":true'
                     then
-                        echo "Grid is ready"
+                        echo "Selenium Grid is ready"
                         exit 0
                     fi
 
@@ -115,15 +116,14 @@ pipeline {
                         -Dbrowser=${params.BROWSER} \
                         -Dheadless=${params.HEADLESS}
                         """
+
                     }
                 }
             }
         }
 
         stage('Generate Allure Report') {
-
             steps {
-
                 sh 'mvn -pl web-ui allure:report || true'
                 sh 'mvn -pl api allure:report || true'
             }
@@ -141,8 +141,9 @@ pipeline {
                 if (params.RUN_MODE == 'remote') {
 
                     sh """
-                    docker compose -f ${env.GRID_COMPOSE} down
+                    docker-compose -f ${env.GRID_COMPOSE} down
                     """
+
                 }
             }
         }
