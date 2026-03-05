@@ -178,40 +178,57 @@ pipeline {
 
                 script {
 
-                    if (params.SCOPE == 'ui') {
+                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
 
-                        sh """
-                        mvn -pl web-ui test -B \
-                        -Drun.mode=${params.RUN_MODE} \
-                        -Dbrowser=${params.BROWSER} \
-                        -Dheadless=${params.HEADLESS} \
-                        -Dgrid.url=${env.GRID_URL}
-                        """
+                        if (params.SCOPE == 'ui') {
 
-                    } else if (params.SCOPE == 'api') {
+                            sh """
+                            mvn -pl web-ui test -B \
+                            -Drun.mode=${params.RUN_MODE} \
+                            -Dbrowser=${params.BROWSER} \
+                            -Dheadless=${params.HEADLESS} \
+                            -Dgrid.url=${env.GRID_URL}
+                            """
 
-                        sh "mvn -pl api test -B"
+                        } else if (params.SCOPE == 'api') {
 
-                    } else {
+                            sh "mvn -pl api test -B"
 
-                        sh """
-                        mvn test -B \
-                        -Drun.mode=${params.RUN_MODE} \
-                        -Dbrowser=${params.BROWSER} \
-                        -Dheadless=${params.HEADLESS} \
-                        -Dgrid.url=${env.GRID_URL}
-                        """
+                        } else {
+
+                            sh """
+                            mvn test -B \
+                            -Drun.mode=${params.RUN_MODE} \
+                            -Dbrowser=${params.BROWSER} \
+                            -Dheadless=${params.HEADLESS} \
+                            -Dgrid.url=${env.GRID_URL}
+                            """
+                        }
                     }
                 }
             }
         }
 
         stage('Generate Allure Report') {
+
+            when {
+                expression { true }
+            }
+
             steps {
 
-                sh 'mvn -pl web-ui allure:report || true'
-                sh 'mvn -pl api allure:report || true'
+                script {
 
+                    catchError(buildResult: null, stageResult: 'FAILURE') {
+
+                        if (params.SCOPE == 'ui' || params.SCOPE == 'all') {
+                            sh 'mvn -pl web-ui allure:report -B || true'
+                        }
+                        if (params.SCOPE == 'api' || params.SCOPE == 'all') {
+                            sh 'mvn -pl api allure:report -B || true'
+                        }
+                    }
+                }
             }
         }
     }
