@@ -125,17 +125,21 @@ pipeline {
                 sh """
                     BASE=\${GRID_URL:-http://localhost:4444}
                     STATUS_URL="\${BASE%/}/status"
-                    echo "Waiting for Selenium Grid at \$STATUS_URL (reachable from this agent)..."
+                    echo "Waiting for Selenium Grid at \$STATUS_URL (must be reachable from this agent)..."
+                    echo "Tip: If Jenkins runs in Docker, localhost won't reach the host grid. Set GRID_URL_PARAM or global GRID_URL to http://host.docker.internal:4444 (Win/Mac) or http://<host-ip>:4444 (Linux)."
                     for i in \$(seq 1 30); do
-                        STATUS=\$(curl -s "\$STATUS_URL" 2>/dev/null || true)
-                        if echo "\$STATUS" | grep -q '"ready":true'; then
+                        BODY=\$(curl -s "\$STATUS_URL" 2>/dev/null || true)
+                        if echo "\$BODY" | grep -q '"ready":true'; then
                             echo "Selenium Grid is ready"
                             exit 0
+                        fi
+                        if [ "\$i" = "1" ] && [ -z "\$BODY" ]; then
+                            echo "curl returned empty (grid not reachable from this agent). If Jenkins is in Docker, set GRID_URL to http://host.docker.internal:4444 or host IP."
                         fi
                         echo "Grid not ready (\$i/30)..."
                         sleep 2
                     done
-                    echo "Grid failed to start or unreachable. For shared grid, set GRID_URL_PARAM (or global GRID_URL) to the grid host."
+                    echo "Grid failed to start or unreachable. If Jenkins runs in Docker, set GRID_URL_PARAM (or Jenkins global GRID_URL) to http://host.docker.internal:4444 or http://<host-ip>:4444"
                     exit 1
                 """
             }
