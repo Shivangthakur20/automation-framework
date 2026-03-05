@@ -138,23 +138,38 @@ pipeline {
             steps {
                 sh """
                     BASE=\${GRID_URL:-http://localhost:4444}
-                    STATUS_URL="\${BASE%/}/status"
-                    echo "Waiting for Selenium Grid at \$STATUS_URL (must be reachable from this agent)..."
+                    echo "Waiting for Selenium Grid (trying GRID_URL and localhost:4444)..."
                     for i in \$(seq 1 30); do
+                        # Try GRID_URL first (e.g. selenium-hub:4444 when on same Docker network)
+                        STATUS_URL="\${BASE%/}/status"
                         BODY=\$(curl -s "\$STATUS_URL" 2>/dev/null || true)
                         if echo "\$BODY" | grep -q '"ready":true'; then
-                            echo "Selenium Grid is ready"
+                            echo "\$BASE" > .grid_url_used
+                            echo "Selenium Grid is ready at \$BASE"
                             exit 0
                         fi
-                        if [ "\$i" = "1" ] && [ -z "\$BODY" ]; then
-                            echo "curl returned empty. Ensure Jenkins is on network automation-net and grid compose uses automation-net. For shared grid set GRID_URL_PARAM."
+                        # Fallback: try localhost (works when agent is host and grid publishes 4444)
+                        BODY=\$(curl -s "http://localhost:4444/status" 2>/dev/null || true)
+                        if echo "\$BODY" | grep -q '"ready":true'; then
+                            echo "http://localhost:4444" > .grid_url_used
+                            echo "Selenium Grid is ready at http://localhost:4444 (localhost fallback)"
+                            exit 0
+                        fi
+                        if [ "\$i" = "1" ]; then
+                            echo "Tip: If GRID_URL (e.g. selenium-hub) is unreachable, pipeline will try localhost:4444. Ensure Jenkins/grid use automation-net or grid port 4444 is published."
                         fi
                         echo "Grid not ready (\$i/30)..."
                         sleep 2
                     done
-                    echo "Grid failed or unreachable. Ensure automation-net exists and Jenkins/grid use it; or for shared grid set GRID_URL_PARAM."
+                    echo "Grid failed or unreachable. Check automation-net and that grid is running; or set GRID_URL_PARAM for shared grid."
                     exit 1
                 """
+                script {
+                    if (fileExists('.grid_url_used')) {
+                        env.GRID_URL = readFile('.grid_url_used').trim()
+                        echo "Using GRID_URL=${env.GRID_URL} for tests"
+                    }
+                }
             }
         }
 
