@@ -35,17 +35,20 @@ public abstract class BaseTest {
         WebDriver driver = DriverManager.getDriver();
 
         if (driver != null) {
-
             try {
                 if (result.getStatus() == ITestResult.FAILURE) {
-
                     AllureAttachmentService.attachScreenshot(driver);
                     AllureAttachmentService.attachPageSource(driver);
                     AllureAttachmentService.attachConsoleLogs(driver);
                 }
-
-            } finally {
+            } catch (Exception e) {
+                log.debug("Attachment failed: {}", e.getMessage());
+            }
+            try {
                 driver.quit();
+            } catch (Exception e) {
+                log.debug("Driver quit failed (session may be invalid): {}", e.getMessage());
+            } finally {
                 DriverManager.unload();
             }
         }

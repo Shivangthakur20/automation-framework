@@ -43,11 +43,11 @@
             <version>7.9.0</version>
         </dependency>
 
-        <!-- Selenium Web UI -->
+        <!-- Selenium Web UI (match grid image version, e.g. selenium/hub:4.21.0) -->
         <dependency>
             <groupId>org.seleniumhq.selenium</groupId>
             <artifactId>selenium-java</artifactId>
-            <version>4.16.1</version>
+            <version>4.21.0</version>
         </dependency>
 
         <!-- WebDriverManager for local drivers -->
