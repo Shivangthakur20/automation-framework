@@ -115,6 +115,20 @@ pipeline {
             }
         }
 
+        stage('Resolve Grid URL') {
+
+            when {
+                expression { params.RUN_MODE == 'remote' && !params.USE_SHARED_GRID }
+            }
+
+            steps {
+                script {
+                    env.GRID_URL = 'http://selenium-hub:4444'
+                    echo "Grid on same Docker network as Jenkins; using http://selenium-hub:4444"
+                }
+            }
+        }
+
         stage('Wait for Grid') {
 
             when {
@@ -126,7 +140,6 @@ pipeline {
                     BASE=\${GRID_URL:-http://localhost:4444}
                     STATUS_URL="\${BASE%/}/status"
                     echo "Waiting for Selenium Grid at \$STATUS_URL (must be reachable from this agent)..."
-                    echo "Tip: If Jenkins runs in Docker, localhost won't reach the host grid. Set GRID_URL_PARAM or global GRID_URL to http://host.docker.internal:4444 (Win/Mac) or http://<host-ip>:4444 (Linux)."
                     for i in \$(seq 1 30); do
                         BODY=\$(curl -s "\$STATUS_URL" 2>/dev/null || true)
                         if echo "\$BODY" | grep -q '"ready":true'; then
@@ -134,12 +147,12 @@ pipeline {
                             exit 0
                         fi
                         if [ "\$i" = "1" ] && [ -z "\$BODY" ]; then
-                            echo "curl returned empty (grid not reachable from this agent). If Jenkins is in Docker, set GRID_URL to http://host.docker.internal:4444 or host IP."
+                            echo "curl returned empty. Ensure Jenkins is on network automation-net and grid compose uses automation-net. For shared grid set GRID_URL_PARAM."
                         fi
                         echo "Grid not ready (\$i/30)..."
                         sleep 2
                     done
-                    echo "Grid failed to start or unreachable. If Jenkins runs in Docker, set GRID_URL_PARAM (or Jenkins global GRID_URL) to http://host.docker.internal:4444 or http://<host-ip>:4444"
+                    echo "Grid failed or unreachable. Ensure automation-net exists and Jenkins/grid use it; or for shared grid set GRID_URL_PARAM."
                     exit 1
                 """
             }

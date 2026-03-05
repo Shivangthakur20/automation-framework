@@ -1,5 +1,10 @@
-services:
+# Selenium Grid only. Uses external network "automation-net" so Jenkins (on the same network) can reach selenium-hub:4444.
+# Create the network once: docker network create automation-net. Start Jenkins (on automation-net) first, then the pipeline can start this grid.
+# See docs/JENKINS.md and docs/INFRASTRUCTURE.md.
 
+version: "3.8"
+
+services:
   selenium-hub:
     image: selenium/hub:4.21.0
     container_name: selenium-hub
@@ -13,7 +18,7 @@ services:
       timeout: 3s
       retries: 20
     networks:
-      - grid
+      - automation-net
 
   chrome:
     image: selenium/node-chrome:4.21.0
@@ -30,7 +35,7 @@ services:
       - SE_NODE_HOST=chrome
       - SE_LOG_LEVEL=INFO
     networks:
-      - grid
+      - automation-net
 
   firefox:
     image: selenium/node-firefox:4.21.0
@@ -45,8 +50,8 @@ services:
       - SE_NODE_HOST=firefox
       - SE_LOG_LEVEL=INFO
     networks:
-      - grid
+      - automation-net
 
 networks:
-  grid:
-    driver: bridge
+  automation-net:
+    external: true
