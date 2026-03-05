@@ -51,8 +51,6 @@ pipeline {
 
         MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
 
-        // Grid URL: param > global env > default. For horizontal scaling set GRID_URL_PARAM or global GRID_URL to shared grid host.
-        GRID_URL = params.GRID_URL_PARAM?.trim() ?: env.GRID_URL ?: 'http://localhost:4444'
         GRID_COMPOSE = 'infrastructure/docker/docker-compose.grid-only.yml'
     }
 
@@ -61,6 +59,15 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+            }
+        }
+
+        stage('Prepare') {
+            steps {
+                script {
+                    def paramUrl = (params.GRID_URL_PARAM ?: '').trim()
+                    env.GRID_URL = paramUrl ?: env.GRID_URL ?: 'http://localhost:4444'
+                }
             }
         }
 
@@ -116,7 +123,8 @@ pipeline {
 
             steps {
                 sh """
-                    STATUS_URL='${env.GRID_URL?.replaceAll(/\/$/, '') ?: 'http://localhost:4444'}/status'
+                    BASE=\${GRID_URL:-http://localhost:4444}
+                    STATUS_URL="\${BASE%/}/status"
                     echo "Waiting for Selenium Grid at \$STATUS_URL (reachable from this agent)..."
                     for i in \$(seq 1 30); do
                         STATUS=\$(curl -s "\$STATUS_URL" 2>/dev/null || true)
