@@ -2,37 +2,24 @@ pipeline {
 
     agent any
 
+    tools {
+        jdk 'jdk11'
+        maven 'maven3'
+    }
+
     parameters {
 
-        choice(
-            name: 'RUN_MODE',
-            choices: ['local', 'remote'],
-            description: 'Execution Mode'
-        )
+        choice(name: 'RUN_MODE', choices: ['local', 'remote'], description: 'Execution Mode')
 
-        choice(
-            name: 'BROWSER',
-            choices: ['chrome', 'firefox'],
-            description: 'Browser'
-        )
+        choice(name: 'BROWSER', choices: ['chrome', 'firefox'], description: 'Browser')
 
-        booleanParam(
-            name: 'HEADLESS',
-            defaultValue: true,
-            description: 'Run tests in headless mode'
-        )
+        booleanParam(name: 'HEADLESS', defaultValue: true, description: 'Run tests in headless mode')
 
-        choice(
-            name: 'SCOPE',
-            choices: ['ui', 'api', 'all'],
-            description: 'Which tests to run'
-        )
+        choice(name: 'SCOPE', choices: ['ui', 'api', 'all'], description: 'Which tests to run')
     }
 
     environment {
-
-        MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
-
+        MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
         GRID_COMPOSE = 'infrastructure/docker/grid/docker-compose.yml'
     }
 
@@ -44,10 +31,20 @@ pipeline {
             }
         }
 
-        stage('Build') {
-
+        stage('Verify Environment') {
             steps {
+                sh '''
+                echo "Java version:"
+                java -version
 
+                echo "Maven version:"
+                mvn -version
+                '''
+            }
+        }
+
+        stage('Build') {
+            steps {
                 sh '''
                 mvn -B clean install \
                 -DskipTests \
@@ -73,7 +70,7 @@ pipeline {
                 sh '''
                 echo "Waiting for Selenium Grid..."
 
-                for i in {1..30}
+                for i in $(seq 1 30)
                 do
                     STATUS=$(curl -s http://localhost:4444/status || true)
 
@@ -107,15 +104,11 @@ pipeline {
                         -Dheadless=${params.HEADLESS}
                         """
 
-                    }
-
-                    else if (params.SCOPE == 'api') {
+                    } else if (params.SCOPE == 'api') {
 
                         sh "mvn -pl api test"
 
-                    }
-
-                    else {
+                    } else {
 
                         sh """
                         mvn test \
@@ -130,15 +123,11 @@ pipeline {
         }
 
         stage('Generate Allure Report') {
-
             steps {
-
                 sh 'mvn -pl web-ui allure:report || true'
                 sh 'mvn -pl api allure:report || true'
-
             }
         }
-
     }
 
     post {
@@ -156,9 +145,7 @@ pipeline {
                     """
 
                 }
-
             }
-
         }
 
         success {
@@ -168,7 +155,5 @@ pipeline {
         failure {
             echo 'Build failed'
         }
-
     }
-
 }
