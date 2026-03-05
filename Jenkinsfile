@@ -137,27 +137,26 @@ pipeline {
 
             steps {
                 sh """
+                    set +x
                     BASE=\${GRID_URL:-http://localhost:4444}
+                    TMP=\$(mktemp)
+                    trap "rm -f \$TMP" EXIT
                     echo "Waiting for Selenium Grid (trying GRID_URL and localhost:4444)..."
                     for i in \$(seq 1 30); do
-                        # Try GRID_URL first (e.g. selenium-hub:4444 when on same Docker network)
                         STATUS_URL="\${BASE%/}/status"
-                        BODY=\$(curl -s "\$STATUS_URL" 2>/dev/null || true)
-                        if echo "\$BODY" | grep -q '"ready":true'; then
+                        curl -s "\$STATUS_URL" -o "\$TMP" 2>/dev/null || true
+                        if grep -qE '"ready"[[:space:]]*:[[:space:]]*true' "\$TMP" 2>/dev/null; then
                             echo "\$BASE" > .grid_url_used
                             echo "Selenium Grid is ready at \$BASE"
                             exit 0
                         fi
-                        # Fallback: try localhost (works when agent is host and grid publishes 4444)
-                        BODY=\$(curl -s "http://localhost:4444/status" 2>/dev/null || true)
-                        if echo "\$BODY" | grep -q '"ready":true'; then
+                        curl -s "http://localhost:4444/status" -o "\$TMP" 2>/dev/null || true
+                        if grep -qE '"ready"[[:space:]]*:[[:space:]]*true' "\$TMP" 2>/dev/null; then
                             echo "http://localhost:4444" > .grid_url_used
                             echo "Selenium Grid is ready at http://localhost:4444 (localhost fallback)"
                             exit 0
                         fi
-                        if [ "\$i" = "1" ]; then
-                            echo "Tip: If GRID_URL (e.g. selenium-hub) is unreachable, pipeline will try localhost:4444. Ensure Jenkins/grid use automation-net or grid port 4444 is published."
-                        fi
+                        [ "\$i" = "1" ] && echo "Tip: Ensure Jenkins/grid use automation-net or grid port 4444 is published."
                         echo "Grid not ready (\$i/30)..."
                         sleep 2
                     done
