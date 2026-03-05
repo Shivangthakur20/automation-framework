@@ -50,6 +50,18 @@ pipeline {
             }
         }
 
+        stage('Debug Workspace') {
+            steps {
+                sh '''
+                echo "Current directory:"
+                pwd
+
+                echo "Workspace contents:"
+                ls -R
+                '''
+            }
+        }
+
         stage('Verify Environment') {
             steps {
                 sh '''
