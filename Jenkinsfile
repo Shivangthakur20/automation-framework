@@ -231,6 +231,29 @@ pipeline {
                 }
             }
         }
+
+        stage('Publish Allure Report') {
+
+            when {
+                expression { true }
+            }
+
+            steps {
+
+                script {
+
+                    catchError(buildResult: null, stageResult: 'FAILURE') {
+
+                        allure([
+                            includeProperties: false,
+                            jdk: '',
+                            reportBuildPolicy: 'ALWAYS',
+                            results: [[path: '**/allure-results']]
+                        ])
+                    }
+                }
+            }
+        }
     }
 
     post {
