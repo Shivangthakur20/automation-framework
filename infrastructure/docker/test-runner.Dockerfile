@@ -1,12 +1,46 @@
+# -----------------------------
+# Base Image
+# -----------------------------
 FROM maven:3.9.6-eclipse-temurin-11
 
+# -----------------------------
+# Metadata
+# -----------------------------
+LABEL maintainer="shivang"
+LABEL description="Automation Test Runner Container"
+
+# -----------------------------
+# Set working directory
+# -----------------------------
 WORKDIR /app
 
+# -----------------------------
+# Copy parent POM
+# -----------------------------
 COPY pom.xml .
-RUN mvn dependency:go-offline
 
+# -----------------------------
+# Copy module POMs (for caching)
+# -----------------------------
+COPY framework-core/pom.xml framework-core/
+COPY web-ui/pom.xml web-ui/
+COPY api/pom.xml api/
+COPY perf-gatling/pom.xml perf-gatling/
+COPY e2e/pom.xml e2e/
+
+# -----------------------------
+# Download dependencies
+# -----------------------------
+RUN mvn -B -q \
+    -Dmaven.test.skip=true \
+    dependency:go-offline
+
+# -----------------------------
+# Copy full source code
+# -----------------------------
 COPY . .
 
-RUN apt-get update && apt-get install -y curl
-
-CMD ["mvn", "clean", "test"]
+# -----------------------------
+# Default command
+# -----------------------------
+CMD ["mvn","-B","test"]
