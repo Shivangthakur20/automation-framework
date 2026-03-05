@@ -22,7 +22,7 @@ pipeline {
 
     environment {
         MAVEN_OPTS = '-Dmaven.repo.local=.m2/repository'
-        GRID_COMPOSE = 'infrastructure/docker/grid/docker-compose.yml'
+        GRID_COMPOSE = 'infrastructure/docker/docker-compose.grid-only.yml'
     }
 
     stages {
@@ -48,7 +48,7 @@ pipeline {
                 script {
                     def gridReady = false
                     for (int i = 0; i < 30; i++) {
-                        def status = sh(script: "curl -s http://localhost:4444/status 2>/dev/null || true", returnStdout: true).trim()
+                        def status = sh(script: "curl -s http://selenium-hub:4444/status 2>/dev/null || true", returnStdout: true).trim()
                         if (status.contains('"ready":true')) {
                             gridReady = true
                             break
