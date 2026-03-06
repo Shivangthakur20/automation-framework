@@ -1,0 +1,116 @@
+pipeline {
+
+    agent any
+
+    tools {
+        jdk 'jdk11'
+        maven 'maven3'
+    }
+
+    environment {
+        MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Verify Environment') {
+            steps {
+                sh '''
+                echo "Java version:"
+                java -version
+
+                echo "Maven version:"
+                mvn -version
+                '''
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh '''
+                mvn -B clean install \
+                -DskipTests \
+                -Ddependency-check.skip=true
+                '''
+            }
+        }
+
+        stage('Run API Tests') {
+
+            steps {
+                script {
+                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                        sh '''
+                        mvn -pl api test -B
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Generate Allure Report') {
+
+            steps {
+                script {
+                    catchError(buildResult: null, stageResult: 'FAILURE') {
+                        if (fileExists('api/target/allure-results')) {
+                            sh 'mvn -pl api allure:report -B || true'
+                        } else {
+                            echo 'No allure-results found for api.'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Publish Allure Report') {
+
+            steps {
+                script {
+                    catchError(buildResult: null, stageResult: 'FAILURE') {
+
+                        def resultPaths = []
+                        if (fileExists('api/target/allure-results')) {
+                            resultPaths.add([path: 'api/target/allure-results'])
+                        }
+
+                        if (resultPaths.isEmpty()) {
+                            echo 'No allure-results found for api.'
+                        } else {
+                            echo "Publishing Allure from: ${resultPaths*.path.join(', ')}"
+                            allure([
+                                commandline: 'Allure',
+                                includeProperties: false,
+                                jdk: '',
+                                reportBuildPolicy: 'ALWAYS',
+                                results: resultPaths
+                            ])
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+
+        always {
+            archiveArtifacts artifacts: '**/target/**', fingerprint: true
+        }
+
+        success {
+            echo 'API build successful'
+        }
+
+        failure {
+            echo 'API build failed'
+        }
+    }
+}
+
