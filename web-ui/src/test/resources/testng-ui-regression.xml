@@ -1,0 +1,24 @@
+<suite name="UI Regression Suite" parallel="tests" thread-count="2">
+    <listeners>
+        <listener class-name="core.retry.RetryTransformer"/>
+        <listener class-name="core.metrics.FlakyQuarantineTransformer"/>
+        <listener class-name="io.qameta.allure.testng.AllureTestNg"/>
+        <listener class-name="listeners.TestListener"/>
+    </listeners>
+
+    <test name="UI Regression Tests">
+        <groups>
+            <run>
+                <include name="regression"/>
+            </run>
+        </groups>
+        <classes>
+            <class name="tests.AllureTest"/>
+            <class name="tests.MyTest"/>
+            <class name="tests.FrameworkHealthTest"/>
+            <class name="tests.LoginTest"/>
+            <class name="tests.HotstarTest"/>
+        </classes>
+    </test>
+</suite>
+
