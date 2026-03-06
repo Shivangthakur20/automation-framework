@@ -61,7 +61,8 @@ pipeline {
     environment {
         MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
         GRID_COMPOSE = 'infrastructure/docker/docker-compose.grid-only.yml'
-        UI_SUITE = 'web-ui/src/test/resources/testng-ui-regression.xml'
+        // Path is relative to the web-ui module when using -pl web-ui
+        UI_SUITE = 'src/test/resources/testng-ui-regression.xml'
     }
 
     stages {
