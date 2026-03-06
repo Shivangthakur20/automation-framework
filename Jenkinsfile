@@ -222,10 +222,14 @@ pipeline {
                     catchError(buildResult: null, stageResult: 'FAILURE') {
 
                         if (params.SCOPE == 'ui' || params.SCOPE == 'all') {
-                            sh 'mvn -pl web-ui allure:report -B || true'
+                            if (fileExists('web-ui/target/allure-results')) {
+                                sh 'mvn -pl web-ui allure:report -B || true'
+                            }
                         }
                         if (params.SCOPE == 'api' || params.SCOPE == 'all') {
-                            sh 'mvn -pl api allure:report -B || true'
+                            if (fileExists('api/target/allure-results')) {
+                                sh 'mvn -pl api allure:report -B || true'
+                            }
                         }
                     }
                 }
