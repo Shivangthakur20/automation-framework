@@ -245,13 +245,22 @@ pipeline {
                     catchError(buildResult: null, stageResult: 'FAILURE') {
 
                         def resultPaths = []
+
                         if (params.SCOPE == 'ui' || params.SCOPE == 'all') {
-                            resultPaths.add([path: 'web-ui/target/allure-results'])
+                            if (fileExists('web-ui/target/allure-results')) {
+                                resultPaths.add([path: 'web-ui/target/allure-results'])
+                            }
                         }
                         if (params.SCOPE == 'api' || params.SCOPE == 'all') {
-                            resultPaths.add([path: 'api/target/allure-results'])
+                            if (fileExists('api/target/allure-results')) {
+                                resultPaths.add([path: 'api/target/allure-results'])
+                            }
                         }
-                        if (!resultPaths.isEmpty()) {
+
+                        if (resultPaths.isEmpty()) {
+                            echo 'No allure-results found. Run tests first (SCOPE=ui/api/all).'
+                        } else {
+                            echo "Publishing Allure from: ${resultPaths*.path.join(', ')}"
                             allure([
                                 commandline: 'Allure',
                                 includeProperties: false,
