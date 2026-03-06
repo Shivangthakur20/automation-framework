@@ -244,13 +244,22 @@ pipeline {
 
                     catchError(buildResult: null, stageResult: 'FAILURE') {
 
-                        allure([
-                            commandline: 'Allure',
-                            includeProperties: false,
-                            jdk: '',
-                            reportBuildPolicy: 'ALWAYS',
-                            results: [[path: '**/allure-results']]
-                        ])
+                        def resultPaths = []
+                        if (params.SCOPE == 'ui' || params.SCOPE == 'all') {
+                            resultPaths.add([path: 'web-ui/target/allure-results'])
+                        }
+                        if (params.SCOPE == 'api' || params.SCOPE == 'all') {
+                            resultPaths.add([path: 'api/target/allure-results'])
+                        }
+                        if (!resultPaths.isEmpty()) {
+                            allure([
+                                commandline: 'Allure',
+                                includeProperties: false,
+                                jdk: '',
+                                reportBuildPolicy: 'ALWAYS',
+                                results: resultPaths
+                            ])
+                        }
                     }
                 }
             }
