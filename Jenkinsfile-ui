@@ -1,0 +1,271 @@
+pipeline {
+
+    agent any
+
+    tools {
+        jdk 'jdk11'
+        maven 'maven3'
+    }
+
+    parameters {
+
+        choice(
+            name: 'RUN_MODE',
+            choices: ['local', 'remote'],
+            description: 'Execution Mode'
+        )
+
+        choice(
+            name: 'BROWSER',
+            choices: ['chrome', 'firefox'],
+            description: 'Browser'
+        )
+
+        booleanParam(
+            name: 'HEADLESS',
+            defaultValue: true,
+            description: 'Run tests in headless mode'
+        )
+
+        string(
+            name: 'GRID_URL_PARAM',
+            defaultValue: '',
+            description: 'Optional. Grid URL for remote mode (e.g. http://selenium-grid:4444). Leave empty for default (localhost when grid runs on this agent). Required for multi-agent or shared grid.'
+        )
+
+        booleanParam(
+            name: 'USE_SHARED_GRID',
+            defaultValue: false,
+            description: 'Use an already-running shared grid. When true, do NOT start/stop grid on this agent; GRID_URL_PARAM (or global GRID_URL) must point to the shared grid. Use for horizontal scaling / parallel runs.'
+        )
+    }
+
+    environment {
+
+        MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
+
+        GRID_COMPOSE = 'infrastructure/docker/docker-compose.grid-only.yml'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Prepare') {
+            steps {
+                script {
+                    def paramUrl = (params.GRID_URL_PARAM ?: '').trim()
+                    env.GRID_URL = paramUrl ?: env.GRID_URL ?: 'http://localhost:4444'
+                }
+            }
+        }
+
+        stage('Verify Environment') {
+            steps {
+                sh '''
+                echo "Java version:"
+                java -version
+
+                echo "Maven version:"
+                mvn -version
+                '''
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh '''
+                mvn -B clean install \
+                -DskipTests \
+                -Ddependency-check.skip=true
+                '''
+            }
+        }
+
+        stage('Start Selenium Grid') {
+
+            when {
+                expression { params.RUN_MODE == 'remote' && !params.USE_SHARED_GRID }
+            }
+
+            steps {
+
+                sh """
+                echo "Stopping previous grid (if any)"
+                docker compose -f ${env.GRID_COMPOSE} down || true
+                """
+
+                sh """
+                echo "Starting Selenium Grid on this agent..."
+                docker compose -f ${env.GRID_COMPOSE} up -d \
+                --scale chrome=3 \
+                --scale firefox=0
+                """
+            }
+        }
+
+        stage('Resolve Grid URL') {
+
+            when {
+                expression { params.RUN_MODE == 'remote' && !params.USE_SHARED_GRID }
+            }
+
+            steps {
+                script {
+                    env.GRID_URL = 'http://selenium-hub:4444'
+                    echo "Grid on same Docker network as Jenkins; using http://selenium-hub:4444"
+                }
+            }
+        }
+
+        stage('Wait for Grid') {
+
+            when {
+                expression { params.RUN_MODE == 'remote' }
+            }
+
+            steps {
+                sh """
+                    set +x
+                    BASE=\${GRID_URL:-http://localhost:4444}
+                    TMP=\$(mktemp)
+                    trap "rm -f \$TMP" EXIT
+                    echo "Waiting for Selenium Grid (trying GRID_URL and localhost:4444)..."
+                    for i in \$(seq 1 30); do
+                        STATUS_URL="\${BASE%/}/status"
+                        curl -s "\$STATUS_URL" -o "\$TMP" 2>/dev/null || true
+                        if grep -qE '"ready"[[:space:]]*:[[:space:]]*true' "\$TMP" 2>/dev/null; then
+                            echo "\$BASE" > .grid_url_used
+                            echo "Selenium Grid is ready at \$BASE"
+                            exit 0
+                        fi
+                        curl -s "http://localhost:4444/status" -o "\$TMP" 2>/dev/null || true
+                        if grep -qE '"ready"[[:space:]]*:[[:space:]]*true' "\$TMP" 2>/dev/null; then
+                            echo "http://localhost:4444" > .grid_url_used
+                            echo "Selenium Grid is ready at http://localhost:4444 (localhost fallback)"
+                            exit 0
+                        fi
+                        [ "\$i" = "1" ] && echo "Tip: Ensure Jenkins/grid use automation-net or grid port 4444 is published."
+                        echo "Grid not ready (\$i/30)..."
+                        sleep 2
+                    done
+                    echo "Grid failed or unreachable. Check automation-net and that grid is running; or set GRID_URL_PARAM for shared grid."
+                    exit 1
+                """
+                script {
+                    if (fileExists('.grid_url_used')) {
+                        env.GRID_URL = readFile('.grid_url_used').trim()
+                        echo "Using GRID_URL=${env.GRID_URL} for tests"
+                    }
+                }
+            }
+        }
+
+        stage('Run UI Tests') {
+
+            steps {
+
+                script {
+
+                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+
+                        sh """
+                        mvn -pl web-ui test -B \
+                        -Drun.mode=${params.RUN_MODE} \
+                        -Dbrowser=${params.BROWSER} \
+                        -Dheadless=${params.HEADLESS} \
+                        -Dgrid.url=${env.GRID_URL}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Generate Allure Report') {
+
+            when {
+                expression { true }
+            }
+
+            steps {
+
+                script {
+
+                    catchError(buildResult: null, stageResult: 'FAILURE') {
+
+                        if (fileExists('web-ui/target/allure-results')) {
+                            sh 'mvn -pl web-ui allure:report -B || true'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Publish Allure Report') {
+
+            when {
+                expression { true }
+            }
+
+            steps {
+
+                script {
+
+                    catchError(buildResult: null, stageResult: 'FAILURE') {
+
+                        def resultPaths = []
+
+                        if (fileExists('web-ui/target/allure-results')) {
+                            resultPaths.add([path: 'web-ui/target/allure-results'])
+                        }
+
+                        if (resultPaths.isEmpty()) {
+                            echo 'No allure-results found for web-ui.'
+                        } else {
+                            echo "Publishing Allure from: ${resultPaths*.path.join(', ')}"
+                            allure([
+                                commandline: 'Allure',
+                                includeProperties: false,
+                                jdk: '',
+                                reportBuildPolicy: 'ALWAYS',
+                                results: resultPaths
+                            ])
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+
+        always {
+
+            archiveArtifacts artifacts: '**/target/**', fingerprint: true
+
+            script {
+
+                if (params.RUN_MODE == 'remote' && !params.USE_SHARED_GRID) {
+
+                    sh """
+                    echo "Stopping Selenium Grid on this agent..."
+                    docker compose -f ${env.GRID_COMPOSE} down || true
+                    """
+                }
+            }
+        }
+
+        success {
+            echo 'UI build successful'
+        }
+
+        failure {
+            echo 'UI build failed'
+        }
+    }
+}
+
