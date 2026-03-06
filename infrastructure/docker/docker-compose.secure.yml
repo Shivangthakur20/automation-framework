@@ -1,0 +1,82 @@
+# Secure stack: Nginx (HTTPS) + Jenkins + Grafana (+ Prometheus/Pushgateway). Single network, only Nginx exposes 80/443.
+# Jenkins is also on automation-net so the pipeline can start the grid and reach selenium-hub:4444. Create automation-net first if needed: docker network create automation-net
+# Run from project root. Requires TLS certs in infrastructure/nginx/ssl/ (run gen-selfsigned-cert.sh or use your certs).
+# See docs/SECURE-ACCESS.md.
+
+version: "3.8"
+
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../nginx/nginx.conf.example:/etc/nginx/nginx.conf:ro
+      - ../nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - jenkins
+      - grafana
+    networks:
+      - secure
+
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    restart: unless-stopped
+    user: root
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - secure
+      - automation-net
+    # No ports exposed to host; access only via Nginx
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    networks:
+      - secure
+
+  pushgateway:
+    image: prom/pushgateway:v1.6.2
+    container_name: pushgateway
+    networks:
+      - secure
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # Set GF_SERVER_ROOT_URL to your real URL, e.g. https://your-server-ip/grafana/ or https://grafana.yourdomain.com/grafana/
+      - GF_SERVER_ROOT_URL=https://localhost/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - secure
+
+volumes:
+  jenkins_home:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  secure:
+    driver: bridge
+  automation-net:
+    external: true

@@ -138,15 +138,19 @@ pipeline {
 
         stage('Run UI Smoke') {
             steps {
-                sh """
-                mvn -pl web-ui test -B \
-                -Dsurefire.suiteXmlFiles=${env.UI_SUITE} \
-                -Denv=${params.ENV} \
-                -Drun.mode=${params.RUN_MODE} \
-                -Dbrowser=${params.BROWSER} \
-                -Dheadless=${params.HEADLESS} \
-                -Dgrid.url=${env.GRID_URL}
-                """
+                script {
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                        sh """
+                        mvn -pl web-ui test -B \
+                        -Dsurefire.suiteXmlFiles=${env.UI_SUITE} \
+                        -Denv=${params.ENV} \
+                        -Drun.mode=${params.RUN_MODE} \
+                        -Dbrowser=${params.BROWSER} \
+                        -Dheadless=${params.HEADLESS} \
+                        -Dgrid.url=${env.GRID_URL}
+                        """
+                    }
+                }
             }
         }
 

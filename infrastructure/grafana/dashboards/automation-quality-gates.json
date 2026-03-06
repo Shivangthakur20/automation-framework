@@ -1,0 +1,237 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "index": 0, "text": "FAIL" } }, "type": "value" },
+            { "options": { "1": { "color": "green", "index": 0, "text": "PASS" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "automation_build_success{env=\"prod\",module=\"web-ui\",suite=\"smoke\"}", "legendFormat": "Prod Smoke", "refId": "A" }],
+      "title": "Gate: Prod Smoke",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "index": 0, "text": "FAIL" } }, "type": "value" },
+            { "options": { "1": { "color": "green", "index": 0, "text": "PASS" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "automation_build_success{env=\"prod\",module=\"web-ui\",suite=\"regression\"}", "legendFormat": "Prod Regression", "refId": "A" }],
+      "title": "Gate: Prod Regression",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "index": 0, "text": "FAIL" } }, "type": "value" },
+            { "options": { "1": { "color": "green", "index": 0, "text": "PASS" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "index": 0, "value": null}, {"color": "green", "index": 1, "value": 1}] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "automation_build_success{env=\"prod\",module=\"api\",suite=\"api\"}", "legendFormat": "Prod API", "refId": "A" }],
+      "title": "Gate: Prod API",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "min": 0,
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 80}, {"color": "green", "value": 95}] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "100 * (automation_tests_passed / automation_tests_total) unless automation_tests_total == 0", "legendFormat": "{{env}} / {{module}} / {{suite}}", "refId": "A" }],
+      "title": "Pass rate (all env/module/suite)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 80}, {"color": "green", "value": 95}] }
+        }
+      },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "100 * (automation_tests_passed / automation_tests_total) unless automation_tests_total == 0", "format": "table", "instant": true, "refId": "A" }],
+      "title": "SLO: Pass rate % (env / module / suite)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "unit": "s",
+          "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}] }
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 4 },
+      "id": 6,
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "automation_run_duration_seconds", "format": "table", "instant": true, "refId": "A" }],
+      "title": "Run duration (s)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}] }
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 4 },
+      "id": 7,
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "automation_tests_failed + automation_tests_errors", "format": "table", "instant": true, "refId": "A" }],
+      "title": "Failures + errors (drill-down)",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "red", "index": 0, "text": "FAIL" } }, "type": "value" },
+            { "options": { "1": { "color": "green", "index": 0, "text": "PASS" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
+        }
+      },
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 10 },
+      "id": 8,
+      "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "automation_build_success", "format": "table", "instant": true, "refId": "A" }],
+      "title": "Build gate (all combinations)",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["automation", "quality-gates", "slo"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Data source",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource",
+        "datasource": { "type": "prometheus", "uid": "prometheus" }
+      },
+      {
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Env",
+        "multi": true,
+        "name": "env",
+        "options": [],
+        "query": "label_values(automation_tests_total, env)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" }
+      },
+      {
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Module",
+        "multi": true,
+        "name": "module",
+        "options": [],
+        "query": "label_values(automation_tests_total, module)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" }
+      },
+      {
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Suite",
+        "multi": true,
+        "name": "suite",
+        "options": [],
+        "query": "label_values(automation_tests_total, suite)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" }
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Automation – Quality Gates",
+  "uid": "automation-quality-gates",
+  "version": 1,
+  "description": "FAANG-style: prod gates, SLO pass rate, and drill-down by env/module/suite. One pane for test health."
+}
