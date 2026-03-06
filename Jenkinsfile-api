@@ -7,6 +7,14 @@ pipeline {
         maven 'maven3'
     }
 
+    parameters {
+        choice(
+            name: 'ENV',
+            choices: ['dev', 'qa', 'prod'],
+            description: 'Target environment (maps to -Denv=...)'
+        )
+    }
+
     environment {
         MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
     }
@@ -46,9 +54,9 @@ pipeline {
             steps {
                 script {
                     catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                        sh '''
-                        mvn -pl api test -B
-                        '''
+                        sh """
+                        mvn -pl api test -B -Denv=${params.ENV}
+                        """
                     }
                 }
             }

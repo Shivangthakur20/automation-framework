@@ -10,6 +10,12 @@ pipeline {
     parameters {
 
         choice(
+            name: 'ENV',
+            choices: ['dev', 'qa', 'prod'],
+            description: 'Target environment (maps to -Denv=...)'
+        )
+
+        choice(
             name: 'RUN_MODE',
             choices: ['local', 'remote'],
             description: 'Execution Mode'
@@ -184,6 +190,7 @@ pipeline {
 
                             sh """
                             mvn -pl web-ui test -B \
+                        -Denv=${params.ENV} \
                             -Drun.mode=${params.RUN_MODE} \
                             -Dbrowser=${params.BROWSER} \
                             -Dheadless=${params.HEADLESS} \
@@ -192,12 +199,13 @@ pipeline {
 
                         } else if (params.SCOPE == 'api') {
 
-                            sh "mvn -pl api test -B"
+                        sh "mvn -pl api test -B -Denv=${params.ENV}"
 
                         } else {
 
                             sh """
                             mvn test -B \
+                        -Denv=${params.ENV} \
                             -Drun.mode=${params.RUN_MODE} \
                             -Dbrowser=${params.BROWSER} \
                             -Dheadless=${params.HEADLESS} \

@@ -10,6 +10,12 @@ pipeline {
     parameters {
 
         choice(
+            name: 'ENV',
+            choices: ['dev', 'qa', 'prod'],
+            description: 'Target environment (maps to -Denv=...)'
+        )
+
+        choice(
             name: 'RUN_MODE',
             choices: ['local', 'remote'],
             description: 'Execution Mode'
@@ -156,6 +162,7 @@ pipeline {
                         sh """
                         mvn -pl web-ui test -B \
                         -Dsurefire.suiteXmlFiles=${env.UI_SUITE} \
+                        -Denv=${params.ENV} \
                         -Drun.mode=${params.RUN_MODE} \
                         -Dbrowser=${params.BROWSER} \
                         -Dheadless=${params.HEADLESS} \
