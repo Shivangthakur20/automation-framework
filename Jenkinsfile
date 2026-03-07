@@ -294,12 +294,12 @@ pipeline {
                         def pushUrl = env.PUSHGATEWAY_URL ?: 'http://localhost:9091'
                         if (params.SCOPE == 'ui' || params.SCOPE == 'all') {
                             sh """
-                                ENV=${params.ENV} MODULE=web-ui SUITE=full PUSHGATEWAY_URL=${pushUrl} BUILD_RESULT=${result} ./scripts/push-test-metrics.sh
+                                ENV=${params.ENV} MODULE=web-ui SUITE=full PUSHGATEWAY_URL=${pushUrl} BUILD_RESULT=${result} bash scripts/push-test-metrics.sh
                             """
                         }
                         if (params.SCOPE == 'api' || params.SCOPE == 'all') {
                             sh """
-                                ENV=${params.ENV} MODULE=api SUITE=api PUSHGATEWAY_URL=${pushUrl} BUILD_RESULT=${result} ./scripts/push-test-metrics.sh
+                                ENV=${params.ENV} MODULE=api SUITE=api PUSHGATEWAY_URL=${pushUrl} BUILD_RESULT=${result} bash scripts/push-test-metrics.sh
                             """
                         }
                     }

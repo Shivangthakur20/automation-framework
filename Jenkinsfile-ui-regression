@@ -201,7 +201,7 @@ pipeline {
                         def result = currentBuild.result ?: 'SUCCESS'
                         def pushUrl = env.PUSHGATEWAY_URL ?: 'http://localhost:9091'
                         sh """
-                            ENV=${params.ENV} MODULE=web-ui SUITE=regression PUSHGATEWAY_URL=${pushUrl} BUILD_RESULT=${result} ./scripts/push-test-metrics.sh
+                            ENV=${params.ENV} MODULE=web-ui SUITE=regression PUSHGATEWAY_URL=${pushUrl} BUILD_RESULT=${result} bash scripts/push-test-metrics.sh
                         """
                     }
                 }
