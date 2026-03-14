@@ -1,0 +1,50 @@
+pipeline {
+
+```
+agent any
+
+parameters {
+
+    choice(
+        name:'ENV',
+        choices:['dev','qa','prod'],
+        description:'Environment'
+    )
+
+}
+
+stages {
+
+    stage('API Tests'){
+        steps{
+            build job:'api-tests',
+            parameters:[
+                string(name:'ENV',value:params.ENV),
+                string(name:'SUITE',value:'regression')
+            ]
+        }
+    }
+
+    stage('UI Tests'){
+        steps{
+            build job:'ui-tests',
+            parameters:[
+                string(name:'ENV',value:params.ENV),
+                string(name:'SUITE',value:'regression')
+            ]
+        }
+    }
+
+    stage('Performance Tests'){
+        steps{
+            build job:'performance-tests',
+            parameters:[
+                string(name:'ENV',value:params.ENV)
+            ]
+        }
+    }
+
+}
+```
+
+}
