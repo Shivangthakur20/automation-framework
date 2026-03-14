@@ -8,15 +8,25 @@ pipeline {
     }
 
     parameters {
+
         choice(
             name: 'ENV',
-            choices: ['dev', 'qa', 'prod'],
-            description: 'Target environment (maps to -Denv=...)'
+            choices: ['dev','qa','prod'],
+            description: 'Target environment'
+        )
+
+        choice(
+            name: 'SCOPE',
+            choices: ['smoke','regression'],
+            description: 'Test suite scope'
         )
     }
 
     environment {
+
         MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
+        PUSHGATEWAY_URL = 'http://pushgateway:9091'
+
     }
 
     stages {
@@ -27,13 +37,18 @@ pipeline {
             }
         }
 
+        stage('Prepare Scripts') {
+            steps {
+                sh '''
+                chmod +x scripts/push-test-metrics.sh
+                '''
+            }
+        }
+
         stage('Verify Environment') {
             steps {
                 sh '''
-                echo "Java version:"
                 java -version
-
-                echo "Maven version:"
                 mvn -version
                 '''
             }
@@ -43,8 +58,7 @@ pipeline {
             steps {
                 sh '''
                 mvn -B clean install \
-                -DskipTests \
-                -Ddependency-check.skip=true
+                -DskipTests
                 '''
             }
         }
@@ -52,87 +66,99 @@ pipeline {
         stage('Run API Tests') {
 
             steps {
-                script {
-                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                        sh """
-                        mvn -pl api test -B -Denv=${params.ENV}
-                        """
-                    }
-                }
+
+                sh """
+                mvn -pl api test -B \
+                -Denv=${params.ENV} \
+                -Dsuite=${params.SCOPE}
+                """
+
             }
         }
 
-        stage('Generate Allure Report') {
+        stage('Collect Metrics') {
 
             steps {
+
                 script {
-                    catchError(buildResult: null, stageResult: 'FAILURE') {
-                        if (fileExists('api/target/allure-results')) {
-                            sh 'mvn -pl api allure:report -B || true'
-                        } else {
-                            echo 'No allure-results found for api.'
-                        }
+
+                    def summary = sh(
+                        script: "grep -h 'Tests run:' api/target/surefire-reports/*.txt || true",
+                        returnStdout: true
+                    ).trim()
+
+                    def matcher = summary =~ /Tests run: (\\d+), Failures: (\\d+), Errors: (\\d+), Skipped: (\\d+)/
+
+                    if (matcher) {
+
+                        env.TOTAL = matcher[0][1]
+                        env.FAIL = matcher[0][2]
+                        env.ERROR = matcher[0][3]
+                        env.SKIP = matcher[0][4]
+
+                        env.PASS = (
+                            env.TOTAL.toInteger() -
+                            env.FAIL.toInteger() -
+                            env.ERROR.toInteger()
+                        ).toString()
+
+                    } else {
+
+                        env.PASS="0"
+                        env.FAIL="0"
+                        env.SKIP="0"
+
                     }
+
                 }
+
             }
+
         }
 
-        stage('Publish Allure Report') {
+        stage('Generate Allure') {
 
             steps {
-                script {
-                    catchError(buildResult: null, stageResult: 'FAILURE') {
 
-                        def resultPaths = []
-                        if (fileExists('api/target/allure-results')) {
-                            resultPaths.add([path: 'api/target/allure-results'])
-                        }
+                sh 'mvn -pl api allure:report -B || true'
 
-                        if (resultPaths.isEmpty()) {
-                            echo 'No allure-results found for api.'
-                        } else {
-                            echo "Publishing Allure from: ${resultPaths*.path.join(', ')}"
-                            allure([
-                                commandline: 'Allure',
-                                includeProperties: false,
-                                jdk: '',
-                                reportBuildPolicy: 'ALWAYS',
-                                results: resultPaths
-                            ])
-                        }
-                    }
-                }
             }
+
         }
 
-        stage('Push metrics') {
+        stage('Publish Allure') {
+
             steps {
-                script {
-                    catchError(buildResult: null, stageResult: 'FAILURE') {
-                        def result = currentBuild.result ?: 'SUCCESS'
-                        def pushUrl = env.PUSHGATEWAY_URL ?: 'http://localhost:9091'
-                        sh """
-                            ENV=${params.ENV} MODULE=api SUITE=api PUSHGATEWAY_URL=${pushUrl} BUILD_RESULT=${result} bash scripts/push-test-metrics.sh
-                        """
-                    }
-                }
+
+                allure([
+                    includeProperties:false,
+                    reportBuildPolicy:'ALWAYS',
+                    results:[[path:'api/target/allure-results']]
+                ])
+
             }
+
         }
+
+        stage('Push Metrics') {
+
+            steps {
+
+                sh """
+                TESTS_PASSED=${env.PASS} \
+                TESTS_FAILED=${env.FAIL} \
+                TESTS_SKIPPED=${env.SKIP} \
+                MODULE=api \
+                ENV=${params.ENV} \
+                SUITE=${params.SCOPE} \
+                PUSHGATEWAY_URL=${env.PUSHGATEWAY_URL} \
+                bash scripts/push-test-metrics.sh
+                """
+
+            }
+
+        }
+
     }
 
-    post {
-
-        always {
-            archiveArtifacts artifacts: '**/target/**', fingerprint: true
-        }
-
-        success {
-            echo 'API build successful'
-        }
-
-        failure {
-            echo 'API build failed'
-        }
-    }
 }
-
