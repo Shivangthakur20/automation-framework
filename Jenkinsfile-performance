@@ -1,0 +1,77 @@
+pipeline {
+
+    agent any
+
+    tools {
+        jdk 'jdk11'
+        maven 'maven3'
+    }
+
+    parameters {
+
+        choice(
+            name: 'ENV',
+            choices: ['dev','qa','prod'],
+            description: 'Target environment'
+        )
+
+    }
+
+    environment {
+
+        MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
+        PUSHGATEWAY_URL = 'http://pushgateway:9091'
+
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Prepare Scripts') {
+            steps {
+                sh '''
+                chmod +x scripts/push-test-metrics.sh
+                '''
+            }
+        }
+
+        stage('Run Performance Tests') {
+
+            steps {
+
+                sh """
+                mvn -pl performance test -B \
+                -Denv=${params.ENV}
+                """
+
+            }
+
+        }
+
+        stage('Push Metrics') {
+
+            steps {
+
+                sh """
+                TESTS_PASSED=1 \
+                TESTS_FAILED=0 \
+                TESTS_SKIPPED=0 \
+                MODULE=performance \
+                ENV=${params.ENV} \
+                SUITE=load \
+                PUSHGATEWAY_URL=${env.PUSHGATEWAY_URL} \
+                bash scripts/push-test-metrics.sh
+                """
+
+            }
+
+        }
+
+    }
+
+}

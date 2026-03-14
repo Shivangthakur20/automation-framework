@@ -12,7 +12,7 @@ pipeline {
         choice(
             name: 'ENV',
             choices: ['dev', 'qa', 'prod'],
-            description: 'Target environment (maps to -Denv=...)'
+            description: 'Target environment'
         )
 
         choice(
@@ -36,13 +36,13 @@ pipeline {
         string(
             name: 'GRID_URL_PARAM',
             defaultValue: '',
-            description: 'Optional. Grid URL for remote mode (e.g. http://selenium-grid:4444). Leave empty for default (localhost when grid runs on this agent). Required for multi-agent or shared grid.'
+            description: 'Optional shared grid URL'
         )
 
         booleanParam(
             name: 'USE_SHARED_GRID',
             defaultValue: false,
-            description: 'Use an already-running shared grid. When true, do NOT start/stop grid on this agent; GRID_URL_PARAM (or global GRID_URL) must point to the shared grid. Use for horizontal scaling / parallel runs.'
+            description: 'Use already running grid'
         )
     }
 
@@ -51,6 +51,8 @@ pipeline {
         MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
 
         GRID_COMPOSE = 'infrastructure/docker/docker-compose.grid-only.yml'
+
+        PUSHGATEWAY_URL = 'http://pushgateway:9091'
     }
 
     stages {
@@ -61,7 +63,16 @@ pipeline {
             }
         }
 
-        stage('Prepare') {
+        stage('Prepare Scripts') {
+            steps {
+                sh '''
+                echo "Preparing scripts..."
+                chmod +x scripts/push-test-metrics.sh
+                '''
+            }
+        }
+
+        stage('Prepare Grid URL') {
             steps {
                 script {
                     def paramUrl = (params.GRID_URL_PARAM ?: '').trim()
@@ -101,12 +112,12 @@ pipeline {
             steps {
 
                 sh """
-                echo "Stopping previous grid (if any)"
+                echo "Stopping previous grid"
                 docker compose -f ${env.GRID_COMPOSE} down || true
                 """
 
                 sh """
-                echo "Starting Selenium Grid on this agent..."
+                echo "Starting Selenium Grid..."
                 docker compose -f ${env.GRID_COMPOSE} up -d \
                 --scale chrome=3 \
                 --scale firefox=0
@@ -123,7 +134,7 @@ pipeline {
             steps {
                 script {
                     env.GRID_URL = 'http://selenium-hub:4444'
-                    echo "Grid on same Docker network as Jenkins; using http://selenium-hub:4444"
+                    echo "Using internal docker grid URL ${env.GRID_URL}"
                 }
             }
         }
@@ -135,39 +146,29 @@ pipeline {
             }
 
             steps {
+
                 sh """
-                    set +x
-                    BASE=\${GRID_URL:-http://localhost:4444}
-                    TMP=\$(mktemp)
-                    trap "rm -f \$TMP" EXIT
-                    echo "Waiting for Selenium Grid (trying GRID_URL and localhost:4444)..."
-                    for i in \$(seq 1 30); do
-                        STATUS_URL="\${BASE%/}/status"
-                        curl -s "\$STATUS_URL" -o "\$TMP" 2>/dev/null || true
-                        if grep -qE '"ready"[[:space:]]*:[[:space:]]*true' "\$TMP" 2>/dev/null; then
-                            echo "\$BASE" > .grid_url_used
-                            echo "Selenium Grid is ready at \$BASE"
-                            exit 0
-                        fi
-                        curl -s "http://localhost:4444/status" -o "\$TMP" 2>/dev/null || true
-                        if grep -qE '"ready"[[:space:]]*:[[:space:]]*true' "\$TMP" 2>/dev/null; then
-                            echo "http://localhost:4444" > .grid_url_used
-                            echo "Selenium Grid is ready at http://localhost:4444 (localhost fallback)"
-                            exit 0
-                        fi
-                        [ "\$i" = "1" ] && echo "Tip: Ensure Jenkins/grid use automation-net or grid port 4444 is published."
-                        echo "Grid not ready (\$i/30)..."
-                        sleep 2
-                    done
-                    echo "Grid failed or unreachable. Check automation-net and that grid is running; or set GRID_URL_PARAM for shared grid."
-                    exit 1
+                BASE=\${GRID_URL:-http://localhost:4444}
+                TMP=\$(mktemp)
+
+                echo "Waiting for Selenium Grid..."
+
+                for i in \$(seq 1 30); do
+
+                    curl -s "\$BASE/status" -o "\$TMP" || true
+
+                    if grep -q '"ready":true' "\$TMP"; then
+                        echo "Grid ready"
+                        exit 0
+                    fi
+
+                    echo "Grid not ready (\$i/30)..."
+                    sleep 2
+                done
+
+                echo "Grid startup failed"
+                exit 1
                 """
-                script {
-                    if (fileExists('.grid_url_used')) {
-                        env.GRID_URL = readFile('.grid_url_used').trim()
-                        echo "Using GRID_URL=${env.GRID_URL} for tests"
-                    }
-                }
             }
         }
 
@@ -192,71 +193,97 @@ pipeline {
             }
         }
 
-        stage('Generate Allure Report') {
-
-            when {
-                expression { true }
-            }
+        stage('Collect Test Metrics') {
 
             steps {
 
                 script {
 
-                    catchError(buildResult: null, stageResult: 'FAILURE') {
+                    def summary = sh(
+                        script: "grep -h 'Tests run:' web-ui/target/surefire-reports/*.txt || true",
+                        returnStdout: true
+                    ).trim()
 
-                        if (fileExists('web-ui/target/allure-results')) {
-                            sh 'mvn -pl web-ui allure:report -B || true'
-                        }
+                    echo "Surefire Summary: ${summary}"
+
+                    def matcher = summary =~ /Tests run: (\\d+), Failures: (\\d+), Errors: (\\d+), Skipped: (\\d+)/
+
+                    if (matcher) {
+
+                        env.TEST_TOTAL = matcher[0][1]
+                        env.TEST_FAIL = matcher[0][2]
+                        env.TEST_ERROR = matcher[0][3]
+                        env.TEST_SKIP = matcher[0][4]
+
+                        env.TEST_PASS = (
+                            env.TEST_TOTAL.toInteger() -
+                            env.TEST_FAIL.toInteger() -
+                            env.TEST_ERROR.toInteger()
+                        ).toString()
+
+                    } else {
+
+                        env.TEST_PASS = "0"
+                        env.TEST_FAIL = "0"
+                        env.TEST_SKIP = "0"
                     }
+
+                    echo "Passed: ${env.TEST_PASS}"
+                    echo "Failed: ${env.TEST_FAIL}"
+                    echo "Skipped: ${env.TEST_SKIP}"
+                }
+            }
+        }
+
+        stage('Generate Allure Report') {
+
+            steps {
+
+                script {
+
+                    if (fileExists('web-ui/target/allure-results')) {
+                        sh 'mvn -pl web-ui allure:report -B || true'
+                    }
+
                 }
             }
         }
 
         stage('Publish Allure Report') {
 
-            when {
-                expression { true }
-            }
-
             steps {
 
                 script {
 
-                    catchError(buildResult: null, stageResult: 'FAILURE') {
+                    if (fileExists('web-ui/target/allure-results')) {
 
-                        def resultPaths = []
-
-                        if (fileExists('web-ui/target/allure-results')) {
-                            resultPaths.add([path: 'web-ui/target/allure-results'])
-                        }
-
-                        if (resultPaths.isEmpty()) {
-                            echo 'No allure-results found for web-ui.'
-                        } else {
-                            echo "Publishing Allure from: ${resultPaths*.path.join(', ')}"
-                            allure([
-                                commandline: 'Allure',
-                                includeProperties: false,
-                                jdk: '',
-                                reportBuildPolicy: 'ALWAYS',
-                                results: resultPaths
-                            ])
-                        }
+                        allure([
+                            includeProperties: false,
+                            reportBuildPolicy: 'ALWAYS',
+                            results: [[path: 'web-ui/target/allure-results']]
+                        ])
                     }
                 }
             }
         }
 
-        stage('Push metrics') {
+        stage('Push Metrics') {
+
             steps {
+
                 script {
-                    catchError(buildResult: null, stageResult: 'FAILURE') {
-                        def result = currentBuild.result ?: 'SUCCESS'
-                        def pushUrl = env.PUSHGATEWAY_URL ?: 'http://localhost:9091'
-                        sh """
-                            ENV=${params.ENV} MODULE=web-ui SUITE=full PUSHGATEWAY_URL=${pushUrl} BUILD_RESULT=${result} bash scripts/push-test-metrics.sh
-                        """
-                    }
+
+                    sh """
+                    TESTS_PASSED=${env.TEST_PASS} \
+                    TESTS_FAILED=${env.TEST_FAIL} \
+                    TESTS_SKIPPED=${env.TEST_SKIP} \
+                    MODULE=ui \
+                    ENV=${params.ENV} \
+                    SUITE=regression \
+                    BROWSER=${params.BROWSER} \
+                    PUSHGATEWAY_URL=${env.PUSHGATEWAY_URL} \
+                    bash scripts/push-test-metrics.sh
+                    """
                 }
             }
         }
@@ -273,7 +300,7 @@ pipeline {
                 if (params.RUN_MODE == 'remote' && !params.USE_SHARED_GRID) {
 
                     sh """
-                    echo "Stopping Selenium Grid on this agent..."
+                    echo "Stopping Selenium Grid..."
                     docker compose -f ${env.GRID_COMPOSE} down || true
                     """
                 }
@@ -289,4 +316,3 @@ pipeline {
         }
     }
 }
-
