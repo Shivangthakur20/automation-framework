@@ -1,131 +1,119 @@
 pipeline {
 
-```
-agent any
+    agent any
 
-parameters {
+    parameters {
 
-    choice(
-        name: 'ENV',
-        choices: ['dev','qa','prod'],
-        description: 'Environment'
-    )
+        choice(
+            name: 'ENV',
+            choices: ['dev','qa','prod'],
+            description: 'Environment'
+        )
 
-    choice(
-        name: 'SUITE',
-        choices: ['smoke','regression'],
-        description: 'API suite'
-    )
-}
+        choice(
+            name: 'SUITE',
+            choices: ['smoke','regression'],
+            description: 'API suite'
+        )
 
-environment {
-
-    JAVA_HOME = "/opt/java/openjdk"
-    PATH = "${JAVA_HOME}/bin:${env.PATH}"
-
-    MAVEN_OPTS = "-Xmx256m -XX:MaxMetaspaceSize=128m"
-    MAVEN_ARGS = "-B -T 1C"
-
-    PUSHGATEWAY_URL = "http://pushgateway:9091"
-
-}
-
-stages {
-
-    stage('Checkout') {
-        steps {
-            checkout scm
-        }
     }
 
-    stage('Verify Environment') {
-        steps {
-            sh '''
-            echo "Java Version"
-            java -version
+    environment {
 
-            echo "Maven Version"
-            mvn -version
-            '''
-        }
+        JAVA_HOME = "/opt/java/openjdk"
+        PATH = "${JAVA_HOME}/bin:${env.PATH}"
+
+        MAVEN_OPTS = "-Xmx256m -XX:MaxMetaspaceSize=128m"
+        MAVEN_ARGS = "-B -T 1C"
+
+        PUSHGATEWAY_URL = "http://pushgateway:9091"
+
     }
 
-    stage('Build API Module') {
-        steps {
-            sh """
-            mvn ${env.MAVEN_ARGS} clean install \
-            -pl api \
-            -am \
-            -DskipTests \
-            -Ddependency-check.skip=true
-            """
-        }
-    }
+    stages {
 
-    stage('Run API Tests') {
-        steps {
-            sh """
-            mvn ${env.MAVEN_ARGS} -pl api test \
-            -Denv=${params.ENV} \
-            -Dsuite=${params.SUITE}
-            """
-        }
-    }
-
-    stage('Generate Allure Report') {
-        steps {
-            script {
-                if (fileExists('api/target/allure-results')) {
-                    sh "mvn -pl api allure:report -B || true"
-                }
+        stage('Checkout') {
+            steps {
+                checkout scm
             }
         }
-    }
 
-    stage('Publish Allure Report') {
-        steps {
-            script {
-                if (fileExists('api/target/allure-results')) {
-                    allure([
-                        includeProperties: false,
-                        reportBuildPolicy: 'ALWAYS',
-                        results: [[path: 'api/target/allure-results']]
-                    ])
-                }
+        stage('Verify Environment') {
+            steps {
+                sh '''
+                java -version
+                mvn -version
+                '''
             }
         }
-    }
 
-    stage('Push Metrics') {
-        steps {
-            sh """
-            MODULE=api \
-            ENV=${params.ENV} \
-            SUITE=${params.SUITE} \
-            BROWSER=na \
-            PUSHGATEWAY_URL=${env.PUSHGATEWAY_URL} \
-            bash scripts/push-test-metrics.sh
-            """
+        stage('Build API Module') {
+            steps {
+                sh """
+                mvn ${env.MAVEN_ARGS} clean install \
+                -pl api \
+                -am \
+                -DskipTests \
+                -Ddependency-check.skip=true
+                """
+            }
         }
+
+        stage('Run API Tests') {
+            steps {
+                sh """
+                mvn ${env.MAVEN_ARGS} -pl api test \
+                -Denv=${params.ENV} \
+                -Dsuite=${params.SUITE}
+                """
+            }
+        }
+
+        stage('Generate Allure') {
+            steps {
+                sh "mvn -pl api allure:report -B || true"
+            }
+        }
+
+        stage('Publish Allure') {
+            steps {
+                allure([
+                    includeProperties: false,
+                    reportBuildPolicy: 'ALWAYS',
+                    results: [[path: 'api/target/allure-results']]
+                ])
+            }
+        }
+
+        stage('Push Metrics') {
+            steps {
+                sh """
+                MODULE=api \
+                ENV=${params.ENV} \
+                SUITE=${params.SUITE} \
+                BROWSER=na \
+                PUSHGATEWAY_URL=${env.PUSHGATEWAY_URL} \
+                bash scripts/push-test-metrics.sh
+                """
+            }
+        }
+
     }
 
-}
+    post {
 
-post {
+        always {
+            archiveArtifacts artifacts: '**/target/**', fingerprint: true
+        }
 
-    always {
-        archiveArtifacts artifacts: '**/target/**', fingerprint: true
+        success {
+            echo 'API build successful'
+        }
+
+        failure {
+            echo 'API build failed'
+        }
+
     }
-
-    success {
-        echo 'API build successful'
-    }
-
-    failure {
-        echo 'API build failed'
-    }
-
-}
-```
 
 }
