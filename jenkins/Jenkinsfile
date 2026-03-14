@@ -1,0 +1,150 @@
+pipeline {
+
+    agent any
+
+    tools {
+        jdk 'jdk11'
+        maven 'maven3'
+    }
+
+    parameters {
+
+        choice(
+            name: 'ENV',
+            choices: ['dev','qa','prod'],
+            description: 'Environment'
+        )
+
+        choice(
+            name: 'TEST_TYPE',
+            choices: ['ui','api','performance'],
+            description: 'Type of tests'
+        )
+
+        choice(
+            name: 'TEST_SCOPE',
+            choices: ['smoke','regression','full'],
+            description: 'Suite'
+        )
+
+        choice(
+            name: 'BROWSER',
+            choices: ['chrome','firefox'],
+            description: 'Browser for UI tests'
+        )
+    }
+
+    environment {
+        PUSHGATEWAY_URL = 'http://localhost:9091'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean install -DskipTests'
+            }
+        }
+
+        stage('Run Tests') {
+
+            steps {
+
+                script {
+
+                    if (params.TEST_TYPE == 'ui') {
+
+                        sh """
+                        mvn -pl web-ui test \
+                        -Denv=${params.ENV} \
+                        -Dsuite=${params.TEST_SCOPE} \
+                        -Dbrowser=${params.BROWSER}
+                        """
+
+                    }
+
+                    if (params.TEST_TYPE == 'api') {
+
+                        sh """
+                        mvn -pl api test \
+                        -Denv=${params.ENV} \
+                        -Dsuite=${params.TEST_SCOPE}
+                        """
+
+                    }
+
+                    if (params.TEST_TYPE == 'performance') {
+
+                        sh """
+                        mvn -pl performance test \
+                        -Denv=${params.ENV}
+                        """
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        stage('Generate Allure Report') {
+
+            steps {
+
+                script {
+
+                    def resultPaths = []
+
+                    if (fileExists('web-ui/target/allure-results')) {
+                        resultPaths.add([path: 'web-ui/target/allure-results'])
+                    }
+
+                    if (fileExists('api/target/allure-results')) {
+                        resultPaths.add([path: 'api/target/allure-results'])
+                    }
+
+                    if (fileExists('performance/target/allure-results')) {
+                        resultPaths.add([path: 'performance/target/allure-results'])
+                    }
+
+                    if (!resultPaths.isEmpty()) {
+
+                        allure([
+                            commandline: 'Allure',
+                            results: resultPaths
+                        ])
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        stage('Push Metrics') {
+
+            steps {
+
+                sh """
+                MODULE=${params.TEST_TYPE} \
+                ENV=${params.ENV} \
+                SUITE=${params.TEST_SCOPE} \
+                PUSHGATEWAY_URL=${env.PUSHGATEWAY_URL} \
+                bash scripts/push-test-metrics.sh
+                """
+
+            }
+
+        }
+
+    }
+
+}
