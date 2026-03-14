@@ -1,0 +1,50 @@
+pipeline {
+
+    agent any
+
+    parameters {
+        choice(
+            name: 'ENV',
+            choices: ['dev','qa','prod'],
+            description: 'Target environment'
+        )
+    }
+
+    stages {
+
+        stage('Run Test Layers') {
+
+            parallel {
+
+                stage('UI Tests') {
+                    steps {
+                        build job: 'automation-ui',
+                        parameters: [
+                            string(name: 'ENV', value: params.ENV),
+                            string(name: 'RUN_MODE', value: 'remote'),
+                            string(name: 'BROWSER', value: 'chrome')
+                        ]
+                    }
+                }
+
+                stage('API Tests') {
+                    steps {
+                        build job: 'automation-api',
+                        parameters: [
+                            string(name: 'ENV', value: params.ENV)
+                        ]
+                    }
+                }
+
+                stage('Performance Tests') {
+                    steps {
+                        build job: 'automation-perf',
+                        parameters: [
+                            string(name: 'ENV', value: params.ENV)
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
