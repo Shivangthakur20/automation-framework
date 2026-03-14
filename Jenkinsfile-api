@@ -5,6 +5,7 @@ pipeline {
     tools {
         jdk 'jdk11'
         maven 'maven3'
+        allure 'Allure'
     }
 
     parameters {
@@ -18,7 +19,7 @@ pipeline {
         choice(
             name: 'SCOPE',
             choices: ['smoke','regression'],
-            description: 'API test suite'
+            description: 'API suite'
         )
 
     }
@@ -42,13 +43,13 @@ pipeline {
 
         }
 
-        stage('Prepare Scripts') {
+        stage('Prepare') {
 
             steps {
 
                 sh '''
                 echo "Preparing scripts"
-                chmod +x scripts/push-test-metrics.sh
+                chmod +x scripts/push-test-metrics.sh || true
                 '''
 
             }
