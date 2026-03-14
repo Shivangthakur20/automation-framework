@@ -2,6 +2,10 @@ pipeline {
 
     agent any
 
+    tools {
+        maven 'maven3'
+    }
+
     parameters {
 
         choice(
@@ -15,20 +19,19 @@ pipeline {
             choices: ['smoke','regression'],
             description: 'API suite'
         )
-
     }
 
     environment {
 
-        JAVA_HOME = "/opt/java/openjdk"
-        PATH = "${JAVA_HOME}/bin:${env.PATH}"
+        JAVA_HOME="/opt/java/openjdk"
 
-        MAVEN_OPTS = "-Xmx256m -XX:MaxMetaspaceSize=128m"
-        MAVEN_ARGS = "-B -T 1C"
+        MAVEN_OPTS="-Xmx256m -XX:MaxMetaspaceSize=128m"
+        MAVEN_ARGS="-B -T 1C"
 
-        PUSHGATEWAY_URL = "http://pushgateway:9091"
+        PUSHGATEWAY_URL="http://pushgateway:9091"
 
     }
+
 
     stages {
 
