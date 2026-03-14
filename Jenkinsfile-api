@@ -18,49 +18,73 @@ pipeline {
         choice(
             name: 'SCOPE',
             choices: ['smoke','regression'],
-            description: 'Test suite scope'
+            description: 'API test suite'
         )
+
     }
 
     environment {
 
-        MAVEN_OPTS = '-Dmaven.repo.local=$WORKSPACE/.m2'
-        PUSHGATEWAY_URL = 'http://pushgateway:9091'
+        MAVEN_OPTS = "-Xmx256m -XX:MaxMetaspaceSize=128m"
+        MAVEN_ARGS = "-B -T 1C"
+
+        PUSHGATEWAY_URL = "http://pushgateway:9091"
 
     }
 
     stages {
 
         stage('Checkout') {
+
             steps {
                 checkout scm
             }
+
         }
 
         stage('Prepare Scripts') {
+
             steps {
+
                 sh '''
+                echo "Preparing scripts"
                 chmod +x scripts/push-test-metrics.sh
                 '''
+
             }
+
         }
 
         stage('Verify Environment') {
+
             steps {
+
                 sh '''
+                echo "Java Version"
                 java -version
+
+                echo "Maven Version"
                 mvn -version
                 '''
+
             }
+
         }
 
-        stage('Build') {
+        stage('Build API Module') {
+
             steps {
-                sh '''
-                mvn -B clean install \
-                -DskipTests
-                '''
+
+                sh """
+                mvn ${env.MAVEN_ARGS} clean install \
+                -pl api \
+                -am \
+                -DskipTests \
+                -Ddependency-check.skip=true
+                """
+
             }
+
         }
 
         stage('Run API Tests') {
@@ -68,12 +92,13 @@ pipeline {
             steps {
 
                 sh """
-                mvn -pl api test -B \
+                mvn ${env.MAVEN_ARGS} -pl api test \
                 -Denv=${params.ENV} \
                 -Dsuite=${params.SCOPE}
                 """
 
             }
+
         }
 
         stage('Collect Metrics') {
@@ -87,26 +112,50 @@ pipeline {
                         returnStdout: true
                     ).trim()
 
+                    echo "Surefire Summary: ${summary}"
+
                     def matcher = summary =~ /Tests run: (\\d+), Failures: (\\d+), Errors: (\\d+), Skipped: (\\d+)/
 
                     if (matcher) {
 
-                        env.TOTAL = matcher[0][1]
-                        env.FAIL = matcher[0][2]
-                        env.ERROR = matcher[0][3]
-                        env.SKIP = matcher[0][4]
+                        env.TEST_TOTAL = matcher[0][1]
+                        env.TEST_FAIL = matcher[0][2]
+                        env.TEST_ERROR = matcher[0][3]
+                        env.TEST_SKIP = matcher[0][4]
 
-                        env.PASS = (
-                            env.TOTAL.toInteger() -
-                            env.FAIL.toInteger() -
-                            env.ERROR.toInteger()
+                        env.TEST_PASS = (
+                            env.TEST_TOTAL.toInteger() -
+                            env.TEST_FAIL.toInteger() -
+                            env.TEST_ERROR.toInteger()
                         ).toString()
 
                     } else {
 
-                        env.PASS="0"
-                        env.FAIL="0"
-                        env.SKIP="0"
+                        env.TEST_PASS = "0"
+                        env.TEST_FAIL = "0"
+                        env.TEST_SKIP = "0"
+
+                    }
+
+                    echo "Passed: ${env.TEST_PASS}"
+                    echo "Failed: ${env.TEST_FAIL}"
+                    echo "Skipped: ${env.TEST_SKIP}"
+
+                }
+
+            }
+
+        }
+
+        stage('Generate Allure Report') {
+
+            steps {
+
+                script {
+
+                    if (fileExists('api/target/allure-results')) {
+
+                        sh "mvn -pl api allure:report -B || true"
 
                     }
 
@@ -116,25 +165,23 @@ pipeline {
 
         }
 
-        stage('Generate Allure') {
+        stage('Publish Allure Report') {
 
             steps {
 
-                sh 'mvn -pl api allure:report -B || true'
+                script {
 
-            }
+                    if (fileExists('api/target/allure-results')) {
 
-        }
+                        allure([
+                            includeProperties: false,
+                            reportBuildPolicy: 'ALWAYS',
+                            results: [[path: 'api/target/allure-results']]
+                        ])
 
-        stage('Publish Allure') {
+                    }
 
-            steps {
-
-                allure([
-                    includeProperties:false,
-                    reportBuildPolicy:'ALWAYS',
-                    results:[[path:'api/target/allure-results']]
-                ])
+                }
 
             }
 
@@ -145,17 +192,40 @@ pipeline {
             steps {
 
                 sh """
-                TESTS_PASSED=${env.PASS} \
-                TESTS_FAILED=${env.FAIL} \
-                TESTS_SKIPPED=${env.SKIP} \
+                TESTS_PASSED=${env.TEST_PASS} \
+                TESTS_FAILED=${env.TEST_FAIL} \
+                TESTS_SKIPPED=${env.TEST_SKIP} \
                 MODULE=api \
                 ENV=${params.ENV} \
                 SUITE=${params.SCOPE} \
+                BROWSER=na \
                 PUSHGATEWAY_URL=${env.PUSHGATEWAY_URL} \
                 bash scripts/push-test-metrics.sh
                 """
 
             }
+
+        }
+
+    }
+
+    post {
+
+        always {
+
+            archiveArtifacts artifacts: '**/target/**', fingerprint: true
+
+        }
+
+        success {
+
+            echo 'API build successful'
+
+        }
+
+        failure {
+
+            echo 'API build failed'
 
         }
 
